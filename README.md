@@ -79,20 +79,6 @@ ollama pull nomic-embed-text
 ollama pull qwen3:8b
 ```
 
-Set the path to your host-level Cursor skills before starting the services.
-
-macOS or Linux:
-
-```shell
-export CURSOR_SKILLS_DIR="$HOME/.cursor/skills"
-```
-
-Windows PowerShell:
-
-```powershell
-$env:CURSOR_SKILLS_DIR = "$HOME\.cursor\skills"
-```
-
 Copy `.env.example` if you need local overrides. Compose already sets
 `DATABASE_URL` and `OLLAMA_HOST=http://host.docker.internal:11434`.
 
