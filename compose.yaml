@@ -4,6 +4,8 @@ services:
   app:
     build:
       context: .
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: postgresql://mini_rag_lab:mini_rag_lab@db:5432/mini_rag_lab
       OLLAMA_HOST: http://host.docker.internal:11434
@@ -11,19 +13,26 @@ services:
       - type: bind
         source: .
         target: /workspace
-      - type: bind
-        source: ${CURSOR_SKILLS_DIR:?Set CURSOR_SKILLS_DIR to your host .cursor/skills directory}
-        target: /root/.cursor/skills
-        read_only: true
-      - type: bind
-        source: ./.cursor/plans
-        target: /root/.cursor/plans
-      - type: bind
-        source: ./.cursor/canvases
-        target: /root/.cursor/projects/workspace/canvases
     depends_on:
       db:
         condition: service_healthy
+
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: mini_rag_lab
+      POSTGRES_USER: mini_rag_lab
+      POSTGRES_PASSWORD: mini_rag_lab
+    volumes:
+      - postgres17_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mini_rag_lab -d mini_rag_lab"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres17_data:
 
   db:
     image: pgvector/pgvector:pg17
