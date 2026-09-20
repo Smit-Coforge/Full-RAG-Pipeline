@@ -1,7 +1,11 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from mini_rag_lab.models import EmbeddedChunk, GenerationDecision, RetrievedChunk
+from mini_rag_lab.domain.models import (
+    EmbeddedChunk,
+    GenerationDecision,
+    RetrievedChunk,
+)
 
 
 class EmbeddingProvider(Protocol):

@@ -1,14 +1,13 @@
 import asyncio
 import os
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from psycopg import AsyncConnection
 
+from mini_rag_lab.adapters.pgvector import PgVectorChunkRepository, create_pool
 from mini_rag_lab.config import get_settings
-from mini_rag_lab.database import PgVectorChunkRepository, create_pool
-from mini_rag_lab.models import EmbeddedChunk
+from mini_rag_lab.domain.models import EmbeddedChunk
+from mini_rag_lab.migrations import apply_migrations
 
 pytestmark = [
     pytest.mark.integration,
@@ -38,18 +37,10 @@ def _chunk(
     )
 
 
-async def _apply_migration(database_url: str) -> None:
-    migration = Path("migrations/001_create_policy_chunks.sql").read_text(
-        encoding="utf-8"
-    )
-    connection = await AsyncConnection.connect(database_url)
-    async with connection:
-        await connection.execute(migration)
-
-
 async def _run_repository_test() -> None:
     settings = get_settings()
-    await _apply_migration(settings.database_url)
+    await apply_migrations(settings.database_url)
+    assert await apply_migrations(settings.database_url) == []
 
     token = uuid4().hex
     document = f"Integration Policy {token}"
@@ -73,6 +64,16 @@ async def _run_repository_test() -> None:
     async with pool:
         repository = PgVectorChunkRepository(pool)
         try:
+            async with pool.connection() as connection:
+                cursor = await connection.execute(
+                    """
+                    SELECT COUNT(*) FROM schema_migrations
+                    WHERE version = %s
+                    """,
+                    ("001_create_policy_chunks.sql",),
+                )
+                assert await cursor.fetchone() == (1,)
+
             await repository.replace_document([first, second])
             await repository.replace_document([first, second])
 

@@ -1,13 +1,17 @@
-from mini_rag_lab.generation import REFUSAL_ANSWER
-from mini_rag_lab.models import (
+from mini_rag_lab.domain.models import (
+    REFUSAL_ANSWER,
     AskRequest,
     AskResponse,
     Citation,
     RetrievedChunk,
     RetrievedChunkSummary,
 )
-from mini_rag_lab.ports import AnswerGenerator, ChunkRepository, EmbeddingProvider
-from mini_rag_lab.retrieval import retrieve_chunks
+from mini_rag_lab.domain.ports import (
+    AnswerGenerator,
+    ChunkRepository,
+    EmbeddingProvider,
+)
+from mini_rag_lab.services.retrieval import retrieve_chunks
 
 GENERATION_CONTEXT_SIZE = 1
 

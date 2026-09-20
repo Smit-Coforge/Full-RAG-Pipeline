@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from mini_rag_lab.config import Settings
-from mini_rag_lab.models import (
+from mini_rag_lab.domain.models import (
     AskRequest,
     AskResponse,
     EmbeddedChunk,

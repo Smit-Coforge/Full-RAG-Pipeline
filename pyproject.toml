@@ -8,20 +8,17 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115,<1",
     "ollama>=0.5,<1",
     "pgvector>=0.4,<1",
     "psycopg[binary,pool]>=3.2,<4",
     "pydantic-settings>=2.8,<3",
-    "uvicorn[standard]>=0.34,<1",
 ]
 
 [project.scripts]
-mini-rag-lab = "mini_rag_lab:main"
+mini-rag-lab = "mini_rag_lab.cli:run"
 
 [project.optional-dependencies]
 dev = [
-    "httpx>=0.28,<1",
     "pytest>=8,<10",
     "ruff>=0.11,<1",
 ]

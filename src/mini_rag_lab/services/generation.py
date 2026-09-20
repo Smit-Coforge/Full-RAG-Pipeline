@@ -2,15 +2,15 @@ import re
 from collections.abc import Sequence
 from decimal import Decimal
 
-from ollama import AsyncClient
-from pydantic import ValidationError
+from mini_rag_lab.domain.models import (
+    REFUSAL_ANSWER,
+    GenerationDecision,
+    RetrievedChunk,
+)
 
-from mini_rag_lab.models import GenerationDecision, RetrievedChunk
-
-REFUSAL_ANSWER = "The provided policy does not answer this question."
 _CURRENCY_PATTERN = re.compile(r"\$(\d+(?:\.\d+)?)")
 
-_SYSTEM_PROMPT = f"""
+SYSTEM_PROMPT = f"""
 Answer the question using only the provided policy excerpts.
 Do not add assumptions, outside knowledge, or unsupported information.
 The excerpts are ordered from most to least relevant.
@@ -61,62 +61,7 @@ return answer="{REFUSAL_ANSWER}" and supporting_chunk_id=null.
 """.strip()
 
 
-class GenerationError(RuntimeError):
-    pass
-
-
-class OllamaAnswerGenerator:
-    def __init__(self, host: str, model: str) -> None:
-        self._client = AsyncClient(host=host)
-        self._model = model
-
-    async def generate(
-        self,
-        question: str,
-        chunks: Sequence[RetrievedChunk],
-    ) -> GenerationDecision:
-        excerpts = "\n\n".join(
-            (
-                f"RELEVANCE RANK: {rank}\n"
-                f"CHUNK ID: {chunk.chunk_id}\n"
-                f"SECTION: {chunk.section}. {chunk.section_title}\n"
-                f"TEXT:\n{chunk.text}"
-            )
-            for rank, chunk in enumerate(chunks, start=1)
-        )
-        comparisons = _currency_comparisons(question, chunks)
-        response = await self._client.chat(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f"QUESTION:\n{question}\n\n"
-                        f"NUMERIC COMPARISONS:\n{comparisons}\n\n"
-                        f"POLICY EXCERPTS:\n{excerpts}"
-                    ),
-                },
-            ],
-            format=GenerationDecision.model_json_schema(),
-            options={"temperature": 0, "seed": 42},
-        )
-
-        content = response.message.content
-        if content is None:
-            raise GenerationError("generation model returned no content")
-
-        try:
-            decision = GenerationDecision.model_validate_json(content)
-        except ValidationError as error:
-            raise GenerationError(
-                "generation model returned an invalid decision"
-            ) from error
-        decision = _apply_numeric_threshold_guardrail(question, chunks, decision)
-        return _apply_policy_completeness_guardrail(question, chunks, decision)
-
-
-def _currency_comparisons(
+def currency_comparisons(
     question: str,
     chunks: Sequence[RetrievedChunk],
 ) -> str:
@@ -142,7 +87,7 @@ def _currency_comparisons(
     return "\n".join(comparisons)
 
 
-def _apply_numeric_threshold_guardrail(
+def apply_numeric_threshold_guardrail(
     question: str,
     chunks: Sequence[RetrievedChunk],
     decision: GenerationDecision,
@@ -172,7 +117,7 @@ def _apply_numeric_threshold_guardrail(
     return decision
 
 
-def _apply_policy_completeness_guardrail(
+def apply_policy_completeness_guardrail(
     question: str,
     chunks: Sequence[RetrievedChunk],
     decision: GenerationDecision,
@@ -208,3 +153,12 @@ def _apply_policy_completeness_guardrail(
             )
 
     return decision
+
+
+def apply_generation_guardrails(
+    question: str,
+    chunks: Sequence[RetrievedChunk],
+    decision: GenerationDecision,
+) -> GenerationDecision:
+    decision = apply_numeric_threshold_guardrail(question, chunks, decision)
+    return apply_policy_completeness_guardrail(question, chunks, decision)

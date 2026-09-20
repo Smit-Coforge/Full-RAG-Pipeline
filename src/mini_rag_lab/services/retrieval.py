@@ -1,5 +1,5 @@
-from mini_rag_lab.models import RetrievedChunk
-from mini_rag_lab.ports import ChunkRepository, EmbeddingProvider
+from mini_rag_lab.domain.models import RetrievedChunk
+from mini_rag_lab.domain.ports import ChunkRepository, EmbeddingProvider
 
 TOP_K = 3
 

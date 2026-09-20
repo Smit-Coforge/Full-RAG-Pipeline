@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from mini_rag_lab.chunking import PolicyFormatError, parse_policy
+from mini_rag_lab.domain.chunking import PolicyFormatError, parse_policy
 
 
 def test_policy_is_split_into_six_structural_chunks() -> None:

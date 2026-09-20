@@ -1,6 +1,6 @@
 import re
 
-from mini_rag_lab.models import PolicyChunk
+from mini_rag_lab.domain.models import PolicyChunk
 
 EXPECTED_SECTION_COUNT = 6
 CHUNK_ID_PREFIX = "expense-policy"

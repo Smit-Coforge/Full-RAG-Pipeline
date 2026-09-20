@@ -3,8 +3,8 @@ from collections.abc import Sequence
 
 import pytest
 
-from mini_rag_lab.ingest import IngestionError, ingest_policy
-from mini_rag_lab.models import EmbeddedChunk
+from mini_rag_lab.domain.models import EmbeddedChunk
+from mini_rag_lab.services.ingestion import IngestionError, ingest_policy
 
 
 class FakeEmbeddingProvider:

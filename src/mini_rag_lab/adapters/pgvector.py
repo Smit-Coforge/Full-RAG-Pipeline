@@ -4,7 +4,7 @@ from pgvector import Vector
 from pgvector.psycopg import register_vector_async
 from psycopg_pool import AsyncConnectionPool
 
-from mini_rag_lab.models import EmbeddedChunk, RetrievedChunk
+from mini_rag_lab.domain.models import EmbeddedChunk, RetrievedChunk
 
 
 def create_pool(database_url: str) -> AsyncConnectionPool:

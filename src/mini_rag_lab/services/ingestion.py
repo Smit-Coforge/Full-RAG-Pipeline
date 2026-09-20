@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from mini_rag_lab.chunking import parse_policy
-from mini_rag_lab.models import EmbeddedChunk
-from mini_rag_lab.ports import ChunkRepository, EmbeddingProvider
+from mini_rag_lab.domain.chunking import parse_policy
+from mini_rag_lab.domain.models import EmbeddedChunk
+from mini_rag_lab.domain.ports import ChunkRepository, EmbeddingProvider
 
 
 class IngestionError(RuntimeError):

@@ -3,12 +3,12 @@ import os
 
 import pytest
 
+from mini_rag_lab.adapters.ollama import OllamaAnswerGenerator, OllamaEmbeddingProvider
+from mini_rag_lab.adapters.pgvector import PgVectorChunkRepository, create_pool
 from mini_rag_lab.config import get_settings
-from mini_rag_lab.database import PgVectorChunkRepository, create_pool
-from mini_rag_lab.generation import REFUSAL_ANSWER, OllamaAnswerGenerator
-from mini_rag_lab.ingest import ingest_policy
-from mini_rag_lab.ollama_client import OllamaEmbeddingProvider
-from mini_rag_lab.service import GroundedQueryService
+from mini_rag_lab.domain.models import REFUSAL_ANSWER
+from mini_rag_lab.services.ingestion import ingest_policy
+from mini_rag_lab.services.query import GroundedQueryService
 
 pytestmark = [
     pytest.mark.integration,

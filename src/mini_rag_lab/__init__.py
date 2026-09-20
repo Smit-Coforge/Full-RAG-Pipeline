@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from mini-rag-lab!")
+"""Grounded expense-policy RAG assistant."""

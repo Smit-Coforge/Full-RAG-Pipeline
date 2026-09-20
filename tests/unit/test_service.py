@@ -1,9 +1,12 @@
 import asyncio
 from collections.abc import Sequence
 
-from mini_rag_lab.generation import REFUSAL_ANSWER
-from mini_rag_lab.models import GenerationDecision, RetrievedChunk
-from mini_rag_lab.service import GroundedQueryService
+from mini_rag_lab.domain.models import (
+    REFUSAL_ANSWER,
+    GenerationDecision,
+    RetrievedChunk,
+)
+from mini_rag_lab.services.query import GroundedQueryService
 
 
 def _chunk(number: int, distance: float) -> RetrievedChunk:

@@ -3,8 +3,8 @@ from collections.abc import Sequence
 
 import pytest
 
-from mini_rag_lab.models import RetrievedChunk
-from mini_rag_lab.retrieval import RetrievalError, retrieve_chunks
+from mini_rag_lab.domain.models import RetrievedChunk
+from mini_rag_lab.services.retrieval import RetrievalError, retrieve_chunks
 
 
 def _chunk(distance: float = 0.1) -> RetrievedChunk:

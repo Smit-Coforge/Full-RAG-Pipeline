@@ -6,7 +6,7 @@ services:
       context: .
     environment:
       DATABASE_URL: postgresql://mini_rag_lab:mini_rag_lab@db:5432/mini_rag_lab
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://host.docker.internal:11434
     volumes:
       - type: bind
         source: .
@@ -24,8 +24,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
 
   db:
     image: pgvector/pgvector:pg17
@@ -41,16 +39,5 @@ services:
       timeout: 5s
       retries: 10
 
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
 volumes:
   postgres17_data:
-  ollama_data:

@@ -1,9 +1,13 @@
-from mini_rag_lab.generation import (
-    _apply_numeric_threshold_guardrail,
-    _apply_policy_completeness_guardrail,
-    _currency_comparisons,
+import asyncio
+from types import SimpleNamespace
+
+from mini_rag_lab.adapters.ollama import OllamaAnswerGenerator
+from mini_rag_lab.domain.models import GenerationDecision, RetrievedChunk
+from mini_rag_lab.services.generation import (
+    apply_numeric_threshold_guardrail,
+    apply_policy_completeness_guardrail,
+    currency_comparisons,
 )
-from mini_rag_lab.models import GenerationDecision, RetrievedChunk
 
 
 def _chunk(text: str, section: str = "1") -> RetrievedChunk:
@@ -19,12 +23,45 @@ def _chunk(text: str, section: str = "1") -> RetrievedChunk:
 
 
 def test_currency_comparisons_are_computed_deterministically() -> None:
-    result = _currency_comparisons(
+    result = currency_comparisons(
         "The cost is $20.",
         [_chunk("The limit is $25.")],
     )
 
     assert result == "$20 is less than $25."
+
+
+def test_generator_forwards_thinking_configuration() -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.arguments = {}
+
+        async def chat(self, **kwargs):
+            self.arguments = kwargs
+            return SimpleNamespace(
+                message=SimpleNamespace(
+                    content='{"answer":"Grounded","supporting_chunk_id":"chunk-1"}'
+                )
+            )
+
+    client = FakeClient()
+    generator = OllamaAnswerGenerator(
+        "http://ollama.test",
+        "qwen3:8b",
+        thinking=True,
+    )
+    generator._client = client
+
+    decision = asyncio.run(
+        generator.generate(
+            "Question?",
+            [_chunk("Grounded evidence.")],
+        )
+    )
+
+    assert decision.answer == "Grounded"
+    assert client.arguments["model"] == "qwen3:8b"
+    assert client.arguments["think"] is True
 
 
 def test_below_required_threshold_corrects_model_decision() -> None:
@@ -34,7 +71,7 @@ def test_below_required_threshold_corrects_model_decision() -> None:
         supporting_chunk_id=chunk.chunk_id,
     )
 
-    corrected = _apply_numeric_threshold_guardrail(
+    corrected = apply_numeric_threshold_guardrail(
         "Do I need a receipt for $20?",
         [chunk],
         incorrect,
@@ -57,7 +94,7 @@ def test_default_and_approval_exception_preserve_complete_policy() -> None:
         supporting_chunk_id=chunk.chunk_id,
     )
 
-    corrected = _apply_policy_completeness_guardrail(
+    corrected = apply_policy_completeness_guardrail(
         "Can I book first class?",
         [chunk],
         incomplete,
@@ -78,7 +115,7 @@ def test_exceeded_cap_preserves_prebooking_approval_rule() -> None:
         supporting_chunk_id=chunk.chunk_id,
     )
 
-    corrected = _apply_policy_completeness_guardrail(
+    corrected = apply_policy_completeness_guardrail(
         "My hotel is $250.",
         [chunk],
         incomplete,
