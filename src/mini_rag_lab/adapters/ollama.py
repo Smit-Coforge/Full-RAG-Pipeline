@@ -4,8 +4,8 @@ from ollama import AsyncClient
 from pydantic import ValidationError
 
 from mini_rag_lab.domain.models import GenerationDecision, RetrievedChunk
+from mini_rag_lab.prompts import SYSTEM_PROMPT
 from mini_rag_lab.services.generation import (
-    SYSTEM_PROMPT,
     apply_generation_guardrails,
     currency_comparisons,
 )

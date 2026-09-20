@@ -2,7 +2,12 @@ import asyncio
 from types import SimpleNamespace
 
 from mini_rag_lab.adapters.ollama import OllamaAnswerGenerator
-from mini_rag_lab.domain.models import GenerationDecision, RetrievedChunk
+from mini_rag_lab.domain.models import (
+    REFUSAL_ANSWER,
+    GenerationDecision,
+    RetrievedChunk,
+)
+from mini_rag_lab.prompts import SYSTEM_PROMPT
 from mini_rag_lab.services.generation import (
     apply_numeric_threshold_guardrail,
     apply_policy_completeness_guardrail,
@@ -20,6 +25,11 @@ def _chunk(text: str, section: str = "1") -> RetrievedChunk:
         text=text,
         distance=0.1,
     )
+
+
+def test_system_prompt_is_loaded_from_file() -> None:
+    assert REFUSAL_ANSWER in SYSTEM_PROMPT
+    assert "supporting_chunk_id" in SYSTEM_PROMPT
 
 
 def test_currency_comparisons_are_computed_deterministically() -> None:
