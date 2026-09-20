@@ -3,38 +3,48 @@
 A grounded employee expense-policy assistant built with Python, FastAPI,
 PostgreSQL/pgvector, and Ollama.
 
-## Docker development image
+## Docker development environment
 
 Prerequisite: Docker Desktop must be running.
 
-Build the image:
+Set the path to your host-level Cursor skills before starting the services.
 
-```bash
-docker build -t mini-rag-lab .
+macOS or Linux:
+
+```shell
+export CURSOR_SKILLS_DIR="$HOME/.cursor/skills"
 ```
 
-Start a development container with the repository mounted:
+Windows PowerShell:
 
-```bash
-docker run --name mini-rag-dev --rm -d \
-  -v "$PWD:/workspace" \
-  mini-rag-lab
+```powershell
+$env:CURSOR_SKILLS_DIR = "$HOME\.cursor\skills"
+```
+
+Build and start the application, PostgreSQL/pgvector, and Ollama containers:
+
+```shell
+docker compose up --build --detach
 ```
 
 In Cursor, select **Dev Containers: Attach to Running Container...**, choose
-`mini-rag-dev`, and select `/usr/local/bin/python` as the Python interpreter.
+`mini-rag-lab-app-1`, and select `/usr/local/bin/python` as the Python
+interpreter. The host skills are mounted read-only at `/root/.cursor/skills`.
+Run **Developer: Reload Window** after attaching so Cursor discovers them.
 
-Verify the image from the container terminal:
+Verify the package and skills mount from the container terminal:
 
-```bash
+```shell
 python -c "import mini_rag_lab; mini_rag_lab.main()"
+ls /root/.cursor/skills
 ```
 
-Stop the container when finished:
+Stop the services when finished:
 
-```bash
-docker stop mini-rag-dev
+```shell
+docker compose down
 ```
 
-PostgreSQL/pgvector and Ollama will be connected when their application
-components are implemented.
+The named PostgreSQL and Ollama volumes survive `docker compose down`. Avoid
+`docker compose down --volumes` unless you intend to delete their data and
+downloaded models.
