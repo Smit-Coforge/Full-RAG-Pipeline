@@ -47,24 +47,8 @@ capability, so neither replaces `nomic-embed-text`.
 Decode speed is similar across variants. Thinking-on is slower because it
 emits hidden reasoning tokens before the JSON answer.
 
-| Question | Qwen off tokens | Qwen on tokens | Thinking characters | Qwen on mean latency |
-| --- | ---: | ---: | ---: | ---: |
-| Meals | 43 | 204 | 698 | 9.04 s |
-| Airfare | 46 | 696 | 3,216 | 30.16 s |
-| Hotels | 51 | 357 | 1,268 | 15.87 s |
-| Receipts | 41 | 171 | 452 | 7.55 s |
-| Ground transportation | 37 | 206 | 777 | 9.21 s |
-| Gym membership | 26 | 150 | 623 | 6.65 s |
 
-After warmup, `load_duration` stayed around 2 ms for every variant. The earlier
-single-shot Mistral maximum of 15.185 s was a model-load outlier, not typical
-decode time. Thinking-on airfare at ~30 s is repeatable: that question
-generated 696 tokens every run.
 
-All three variants produced the expected airfare, hotel, receipt, and
-transportation answers after guardrails. Qwen refused the gym-membership
-question in generation. Mistral's raw generation did not, so the application's
-cosine-distance refusal remains required.
 
 ## Interpretation
 
