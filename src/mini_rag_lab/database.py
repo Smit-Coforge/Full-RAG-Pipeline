@@ -4,7 +4,7 @@ from pgvector import Vector
 from pgvector.psycopg import register_vector_async
 from psycopg_pool import AsyncConnectionPool
 
-from mini_rag_lab.models import EmbeddedChunk
+from mini_rag_lab.models import EmbeddedChunk, RetrievedChunk
 
 
 def create_pool(database_url: str) -> AsyncConnectionPool:
@@ -86,3 +86,45 @@ class PgVectorChunkRepository:
                 """,
                 rows,
             )
+
+    async def search(
+        self,
+        embedding: Sequence[float],
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]:
+        if not 1 <= limit <= 3:
+            raise ValueError("retrieval limit must be between 1 and 3")
+
+        query_vector = Vector(list(embedding))
+        async with self._pool.connection() as connection:
+            cursor = await connection.execute(
+                """
+                SELECT
+                    chunk_id,
+                    document,
+                    version,
+                    section,
+                    section_title,
+                    text,
+                    embedding <=> %s AS distance
+                FROM policy_chunks
+                ORDER BY embedding <=> %s ASC
+                LIMIT %s
+                """,
+                (query_vector, query_vector, limit),
+            )
+            rows = await cursor.fetchall()
+
+        return [
+            RetrievedChunk(
+                chunk_id=row[0],
+                document=row[1],
+                version=row[2],
+                section=row[3],
+                section_title=row[4],
+                text=row[5],
+                distance=float(row[6]),
+            )
+            for row in rows
+        ]

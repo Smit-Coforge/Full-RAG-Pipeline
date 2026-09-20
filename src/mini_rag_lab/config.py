@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_dimensions: Literal[768] = 768
     generation_model: str = "llama3.2:3b"
+    max_cosine_distance: float = Field(default=0.4, ge=0, le=2)
 
 
 @lru_cache

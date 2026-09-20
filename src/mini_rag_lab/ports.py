@@ -18,3 +18,10 @@ class AnswerGenerator(Protocol):
 
 class ChunkRepository(Protocol):
     async def replace_document(self, chunks: Sequence[EmbeddedChunk]) -> None: ...
+
+    async def search(
+        self,
+        embedding: Sequence[float],
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]: ...
