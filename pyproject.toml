@@ -32,6 +32,10 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: requires a running PostgreSQL/pgvector service",
+    "live: requires running PostgreSQL/pgvector and Ollama models",
+]
 
 [tool.ruff]
 line-length = 88
