@@ -1,10 +1,15 @@
 import asyncio
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 
 from mini_rag_lab.domain.models import EmbeddedChunk
 from mini_rag_lab.services.ingestion import IngestionError, ingest_policy
+
+# ingest_policy still calls parse_policy, which accepts this markdown shape
+# and rejects any other section count. The fixture is not policy.md.
+SECTION_COUNT = 6
 
 
 class FakeEmbeddingProvider:
@@ -25,13 +30,29 @@ class RecordingRepository:
         self.saved = list(chunks)
 
 
-def test_ingestion_embeds_and_saves_all_six_chunks() -> None:
-    provider = FakeEmbeddingProvider([[float(index)] * 768 for index in range(6)])
+def _markdown_policy() -> str:
+    sections = [
+        f"## {number}. Section {number}\nBody of section {number}."
+        for number in range(1, SECTION_COUNT + 1)
+    ]
+    return "# Sample Policy — Version 1.0\n\n" + "\n\n".join(sections) + "\n"
+
+
+def _write_policy(tmp_path: Path) -> Path:
+    path = tmp_path / "policy.md"
+    path.write_text(_markdown_policy(), encoding="utf-8")
+    return path
+
+
+def test_ingestion_embeds_and_saves_each_section(tmp_path: Path) -> None:
+    provider = FakeEmbeddingProvider(
+        [[float(index)] * 768 for index in range(SECTION_COUNT)]
+    )
     repository = RecordingRepository()
 
     chunks = asyncio.run(
         ingest_policy(
-            "policy.md",
+            _write_policy(tmp_path),
             provider,
             repository,
             embedding_model="test-model",
@@ -39,20 +60,23 @@ def test_ingestion_embeds_and_saves_all_six_chunks() -> None:
         )
     )
 
-    assert len(provider.received_texts) == 6
-    assert len(chunks) == 6
+    assert len(provider.received_texts) == SECTION_COUNT
+    assert len(chunks) == SECTION_COUNT
     assert repository.saved == chunks
     assert all(chunk.embedding_model == "test-model" for chunk in chunks)
+    assert {chunk.document for chunk in chunks} == {"Sample Policy"}
+    assert {chunk.version for chunk in chunks} == {"1.0"}
 
 
 @pytest.mark.parametrize(
     "embeddings",
     [
-        [[0.0] * 768] * 5,
-        [[0.0] * 767] * 6,
+        [[0.0] * 768] * (SECTION_COUNT - 1),
+        [[0.0] * 767] * SECTION_COUNT,
     ],
 )
 def test_invalid_embedding_response_does_not_write(
+    tmp_path: Path,
     embeddings: list[list[float]],
 ) -> None:
     provider = FakeEmbeddingProvider(embeddings)
@@ -61,7 +85,7 @@ def test_invalid_embedding_response_does_not_write(
     with pytest.raises(IngestionError):
         asyncio.run(
             ingest_policy(
-                "policy.md",
+                _write_policy(tmp_path),
                 provider,
                 repository,
                 embedding_model="test-model",
