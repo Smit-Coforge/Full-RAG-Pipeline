@@ -21,6 +21,7 @@ mini-rag-lab = "mini_rag_lab.cli:run"
 
 [project.optional-dependencies]
 dev = [
+    "mypy>=2.3,<3",
     "pytest>=8,<10",
     "ruff>=0.11,<1",
 ]
