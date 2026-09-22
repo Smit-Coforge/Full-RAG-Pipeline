@@ -73,6 +73,55 @@ def test_ingest_command_uses_runtime_adapters(monkeypatch, capsys) -> None:
     }
 
 
+def test_ingest_command_defaults_to_corpus_directory(monkeypatch, capsys) -> None:
+    runtime = SimpleNamespace(
+        embedding_provider=object(),
+        repository=object(),
+        settings=SimpleNamespace(
+            embedding_model="model",
+            embedding_dimensions=768,
+        ),
+        close=AsyncMock(),
+    )
+    monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
+    chunks = [
+        EmbeddedChunk(
+            chunk_id=f"hr-policy:v{version}:section-1",
+            document="HR Policy",
+            version=version,
+            section="1",
+            section_title="Purpose",
+            text=f"Body {version}",
+            embedding=[0.0] * 768,
+            embedding_model="model",
+        )
+        for version in ("1.0", "2.0")
+    ]
+    ingest_corpus = AsyncMock(return_value=chunks)
+    ingest_policy = AsyncMock()
+    monkeypatch.setattr(cli, "ingest_corpus", ingest_corpus)
+    monkeypatch.setattr(cli, "ingest_policy", ingest_policy)
+
+    assert cli.main(["ingest"]) == 0
+
+    ingest_corpus.assert_awaited_once_with(
+        Path("corpus"),
+        runtime.embedding_provider,
+        runtime.repository,
+        embedding_model="model",
+        embedding_dimensions=768,
+    )
+    ingest_policy.assert_not_awaited()
+    runtime.close.assert_awaited_once()
+    assert json.loads(capsys.readouterr().out) == {
+        "documents": [
+            {"document": "HR Policy", "version": "1.0", "chunks_stored": 1},
+            {"document": "HR Policy", "version": "2.0", "chunks_stored": 1},
+        ],
+        "chunks_stored": 2,
+    }
+
+
 def test_evaluate_command_returns_failure_exit_code(monkeypatch, capsys) -> None:
     runtime = SimpleNamespace(service=object(), close=AsyncMock())
     monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
