@@ -86,7 +86,12 @@ _NUMBERED_HEADER_PATTERN = re.compile(
 )
 _NUMBERED_SECTION_PATTERN = re.compile(r"^(?P<section>\d+)\.\s+(?P<section_title>.+)$")
 _TRAILING_SEPARATOR = re.compile(r"[^\w&)]+$", re.UNICODE)
+_WORD_PATTERN = re.compile(r"\S+")
+_SENTENCE_END = re.compile(r"[.!?]$")
 _SUPPORTED_SUFFIXES = {".pdf", ".docx"}
+_MAX_SECTION_TOKENS = 512
+_SECTION_OVERLAP_TOKENS = 80
+_TOKENS_PER_WORD = 1.3
 
 
 def _document_title(raw_title: str) -> str:
@@ -100,11 +105,62 @@ def _document_slug(title: str) -> str:
     return slug
 
 
+def _estimated_tokens(word_count: int) -> int:
+    return round(word_count * _TOKENS_PER_WORD)
+
+
+def _fit_word_count(word_count: int, token_limit: int) -> int:
+    """Largest prefix of `word_count` words whose estimate is within the limit."""
+    fitted = 0
+    while fitted < word_count and _estimated_tokens(fitted + 1) <= token_limit:
+        fitted += 1
+    return fitted
+
+
+def _split_section_text(text: str) -> list[str]:
+    """Keep a short section whole. Window a longer one at the token cap.
+
+    The next window starts `_SECTION_OVERLAP_TOKENS` before the previous cut.
+    A cut moves back to the nearest sentence end when that still leaves a
+    window larger than the overlap.
+    """
+    matches = list(_WORD_PATTERN.finditer(text))
+    words = [match.group(0) for match in matches]
+    if _estimated_tokens(len(words)) <= _MAX_SECTION_TOKENS:
+        return [text]
+
+    parts: list[str] = []
+    start = 0
+    while start < len(words):
+        fitted = _fit_word_count(len(words) - start, _MAX_SECTION_TOKENS)
+        end = start + max(fitted, 1)
+        if end < len(words):
+            snapped = end
+            while snapped > start and _SENTENCE_END.search(words[snapped - 1]) is None:
+                snapped -= 1
+            if (
+                snapped > start
+                and _estimated_tokens(snapped - start) > _SECTION_OVERLAP_TOKENS
+            ):
+                end = snapped
+
+        parts.append(text[matches[start].start() : matches[end - 1].end()])
+        if end >= len(words):
+            break
+
+        overlap = _fit_word_count(end - start, _SECTION_OVERLAP_TOKENS)
+        next_start = end - overlap
+        if next_start <= start:
+            next_start = start + 1
+        start = next_start
+    return parts
+
+
 def parse_numbered_sections(text: str) -> list[PolicyChunk]:
     """Split policy text on top-level numbered headings.
 
-    Subsections such as 3.1 stay inside the parent section. This is the
-    replaceable chunking step.
+    Subsections such as 3.1 stay inside the parent section. A section over
+    512 estimated tokens is windowed with an 80-token overlap.
     """
     if not text.strip():
         raise PolicyFormatError("policy document is empty")
@@ -139,16 +195,21 @@ def parse_numbered_sections(text: str) -> list[PolicyChunk]:
         if not body:
             raise PolicyFormatError(f"section {current_section} has no text")
 
-        chunks.append(
-            PolicyChunk(
-                chunk_id=f"{slug}:v{version}:section-{current_section}",
-                document=document,
-                version=version,
-                section=current_section,
-                section_title=current_title,
-                text=body,
+        parts = _split_section_text(body)
+        for part_index, part in enumerate(parts):
+            chunk_id = f"{slug}:v{version}:section-{current_section}"
+            if part_index:
+                chunk_id = f"{chunk_id}-part-{part_index + 1}"
+            chunks.append(
+                PolicyChunk(
+                    chunk_id=chunk_id,
+                    document=document,
+                    version=version,
+                    section=current_section,
+                    section_title=current_title,
+                    text=part,
+                )
             )
-        )
 
     for line in lines[header_index + 1 :]:
         section_match = _NUMBERED_SECTION_PATTERN.fullmatch(line.strip())
