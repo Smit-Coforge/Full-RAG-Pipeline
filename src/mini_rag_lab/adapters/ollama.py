@@ -4,6 +4,7 @@ from ollama import AsyncClient
 from pydantic import ValidationError
 
 from mini_rag_lab.domain.models import GenerationDecision, RetrievedChunk
+from mini_rag_lab.domain.ports import EmbeddingTask
 from mini_rag_lab.prompts import SYSTEM_PROMPT
 from mini_rag_lab.services.generation import (
     apply_generation_guardrails,
@@ -20,10 +21,17 @@ class OllamaEmbeddingProvider:
         self._client = AsyncClient(host=host)
         self._model = model
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        task: EmbeddingTask = "search_document",
+    ) -> list[list[float]]:
+        # nomic-embed-text expects asymmetric retrieval prefixes.
+        prefixed = [f"{task}: {text}" for text in texts]
         response = await self._client.embed(
             model=self._model,
-            input=list(texts),
+            input=prefixed,
         )
         return [list(embedding) for embedding in response.embeddings]
 

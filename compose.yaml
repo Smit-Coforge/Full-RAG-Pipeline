@@ -33,20 +33,3 @@ services:
 
 volumes:
   postgres17_data:
-
-  db:
-    image: pgvector/pgvector:pg17
-    environment:
-      POSTGRES_DB: mini_rag_lab
-      POSTGRES_USER: mini_rag_lab
-      POSTGRES_PASSWORD: mini_rag_lab
-    volumes:
-      - postgres17_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mini_rag_lab -d mini_rag_lab"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-volumes:
-  postgres17_data:

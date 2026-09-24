@@ -34,6 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     ask = commands.add_parser("ask", help="ask one grounded policy question")
     ask.add_argument("question", help="question to answer")
+    ask.add_argument(
+        "--strategy",
+        choices=("vector", "keyword", "hybrid"),
+        default="hybrid",
+        help="retrieval path: vector, keyword (ILIKE), or hybrid",
+    )
 
     commands.add_parser("evaluate", help="run the six required questions")
     return parser
@@ -101,7 +107,10 @@ async def _evaluate() -> int:
 async def _ask(args: argparse.Namespace) -> int:
     runtime = await create_runtime()
     try:
-        response = await runtime.service.ask(args.question)
+        response = await runtime.service.ask(
+            args.question,
+            strategy=args.strategy,
+        )
     finally:
         await runtime.close()
 

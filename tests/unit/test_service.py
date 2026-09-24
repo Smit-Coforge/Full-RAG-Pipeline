@@ -22,7 +22,12 @@ def _chunk(number: int, distance: float) -> RetrievedChunk:
 
 
 class FakeEmbeddingProvider:
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        task: str = "search_document",
+    ) -> list[list[float]]:
         return [[0.0] * 768 for _ in texts]
 
 
@@ -36,8 +41,15 @@ class FakeRepository:
         *,
         limit: int,
     ) -> list[RetrievedChunk]:
-        assert limit == 3
-        return self.chunks
+        return self.chunks[:limit]
+
+    async def keyword_search(
+        self,
+        question: str,
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]:
+        return []
 
 
 class FakeGenerator:

@@ -39,7 +39,11 @@ async def main() -> int:
     try:
         embed_response = await client.embed(
             model=settings.embedding_model,
-            input=[SENTENCE_A, SENTENCE_B, QUERY],
+            input=[
+                f"search_document: {SENTENCE_A}",
+                f"search_document: {SENTENCE_B}",
+                f"search_query: {QUERY}",
+            ],
         )
         vectors = [list(embedding) for embedding in embed_response.embeddings]
         if len(vectors) != 3:

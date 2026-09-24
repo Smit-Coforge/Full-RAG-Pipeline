@@ -158,6 +158,38 @@ def test_ask_command_prints_structured_json(monkeypatch, capsys) -> None:
 
     assert cli.main(["ask", "What is covered?"]) == 0
 
-    service.ask.assert_awaited_once_with("What is covered?")
+    service.ask.assert_awaited_once_with("What is covered?", strategy="hybrid")
     runtime.close.assert_awaited_once()
     assert json.loads(capsys.readouterr().out) == response.model_dump(mode="json")
+
+
+def test_ask_command_passes_keyword_strategy(monkeypatch, capsys) -> None:
+    response = AskResponse(
+        answer="Grounded answer",
+        citation=None,
+        retrieved_chunks=[
+            RetrievedChunkSummary(section="7. Refrigerator", distance=0.0)
+        ],
+        retrieval_strategy="keyword",
+    )
+    service = SimpleNamespace(ask=AsyncMock(return_value=response))
+    runtime = SimpleNamespace(service=service, close=AsyncMock())
+    monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
+
+    assert (
+        cli.main(
+            [
+                "ask",
+                "What does section 7.1 say about the refrigerator?",
+                "--strategy",
+                "keyword",
+            ]
+        )
+        == 0
+    )
+
+    service.ask.assert_awaited_once_with(
+        "What does section 7.1 say about the refrigerator?",
+        strategy="keyword",
+    )
+    assert json.loads(capsys.readouterr().out)["retrieval_strategy"] == "keyword"

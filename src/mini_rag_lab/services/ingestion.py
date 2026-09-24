@@ -20,7 +20,10 @@ async def _embed_chunks(
     embedding_model: str,
     embedding_dimensions: int,
 ) -> list[EmbeddedChunk]:
-    embeddings = await embedding_provider.embed([chunk.text for chunk in chunks])
+    embeddings = await embedding_provider.embed(
+        [chunk.text for chunk in chunks],
+        task="search_document",
+    )
 
     if len(embeddings) != len(chunks):
         raise IngestionError(

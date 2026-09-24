@@ -3,6 +3,7 @@ from mini_rag_lab.domain.models import (
     AskRequest,
     AskResponse,
     Citation,
+    RetrievalStrategy,
     RetrievedChunk,
     RetrievedChunkSummary,
 )
@@ -32,13 +33,19 @@ class GroundedQueryService:
         self._embedding_dimensions = embedding_dimensions
         self._max_cosine_distance = max_cosine_distance
 
-    async def ask(self, question: str) -> AskResponse:
+    async def ask(
+        self,
+        question: str,
+        *,
+        strategy: RetrievalStrategy = "hybrid",
+    ) -> AskResponse:
         request = AskRequest(question=question)
         chunks = await retrieve_chunks(
             request.question,
             self._embedding_provider,
             self._repository,
             embedding_dimensions=self._embedding_dimensions,
+            strategy=strategy,
         )
         summaries = [
             RetrievedChunkSummary(
@@ -48,8 +55,14 @@ class GroundedQueryService:
             for chunk in chunks
         ]
 
-        if not chunks or chunks[0].distance > self._max_cosine_distance:
-            return _refusal_response(summaries)
+        if not chunks:
+            return _refusal_response(summaries, strategy)
+
+        # Keyword-only hits use distance 0.0. Gate only when the nearest row
+        # came from vector search (positive cosine distance).
+        nearest = chunks[0]
+        if nearest.distance > self._max_cosine_distance:
+            return _refusal_response(summaries, strategy)
 
         generation_context = chunks[:GENERATION_CONTEXT_SIZE]
         decision = await self._answer_generator.generate(
@@ -65,7 +78,7 @@ class GroundedQueryService:
             None,
         )
         if supporting_chunk is None or decision.answer == REFUSAL_ANSWER:
-            return _refusal_response(summaries)
+            return _refusal_response(summaries, strategy)
 
         return AskResponse(
             answer=decision.answer,
@@ -75,6 +88,7 @@ class GroundedQueryService:
                 section=_section_label(supporting_chunk),
             ),
             retrieved_chunks=summaries,
+            retrieval_strategy=strategy,
         )
 
 
@@ -84,9 +98,11 @@ def _section_label(chunk: RetrievedChunk) -> str:
 
 def _refusal_response(
     summaries: list[RetrievedChunkSummary],
+    strategy: RetrievalStrategy,
 ) -> AskResponse:
     return AskResponse(
         answer=REFUSAL_ANSWER,
         citation=None,
         retrieved_chunks=summaries,
+        retrieval_strategy=strategy,
     )

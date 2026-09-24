@@ -21,8 +21,14 @@ class FakeEmbeddingProvider:
         self.embeddings = embeddings
         self.received_texts: list[str] = []
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        task: str = "search_document",
+    ) -> list[list[float]]:
         self.received_texts = list(texts)
+        self.task = task
         return self.embeddings
 
 
@@ -67,6 +73,7 @@ def test_ingestion_embeds_and_saves_each_section(tmp_path: Path) -> None:
     )
 
     assert len(provider.received_texts) == SECTION_COUNT
+    assert provider.task == "search_document"
     assert len(chunks) == SECTION_COUNT
     assert repository.saved == chunks
     assert all(chunk.embedding_model == "test-model" for chunk in chunks)
@@ -118,9 +125,16 @@ class PerTextEmbeddingProvider:
         self.embeddings = embeddings
         self.received_texts: list[list[str]] = []
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        task: str = "search_document",
+    ) -> list[list[float]]:
         batch = list(texts)
         self.received_texts.append(batch)
+        self.tasks = getattr(self, "tasks", [])
+        self.tasks.append(task)
         if self.embeddings is not None:
             return self.embeddings
         return [[0.0] * 768 for _ in batch]
