@@ -1,34 +1,41 @@
 # Mini RAG Lab
 
-A grounded employee expense-policy assistant. It chunks `policy.md`, embeds
-each section, stores text plus vectors in PostgreSQL/pgvector, retrieves the
-nearest sections, and answers only from that evidence.
+A grounded policy RAG assistant. It ingests PDF/DOCX policies from `corpus/`,
+embeds sections with Ollama `nomic-embed-text`, stores text plus vectors in
+PostgreSQL/pgvector, retrieves with hybrid search (cosine + `ILIKE`), merges
+with RRF, reranks with a MiniLM CrossEncoder, and answers only from that
+evidence.
 
-The application is CLI-only.
+The application is CLI-only. An optional Markdown ingest path still exists for
+a single six-section `##` policy file; the default product path is `corpus/`.
 
-## Submission files
+## Submission / lab notes
 
-| Requirement | What to submit |
+| Topic | Location |
 | --- | --- |
-| Application source | This repository, or a GitHub zip of it |
-| Policy document | `policy.md` |
+| Application source | This repository |
+| Policy corpus | `corpus/` (PDF and DOCX) |
 | Database schema | `migrations/001_create_policy_chunks.sql` and [docs/schema.md](docs/schema.md) |
-| Ingestion command | `python -m mini_rag_lab ingest` in the application source |
+| Architecture decisions | [docs/adr/](docs/adr/) |
 | Run instructions | [docs/running.md](docs/running.md) |
-| Six required questions | [docs/required-questions.md](docs/required-questions.md) |
+| Legacy six-question evaluate | [docs/required-questions.md](docs/required-questions.md) (first mini-lab harness; to be replaced by the new eval suite) |
 
 ## How the pipeline works
 
 ```text
-policy.md
-  -> structural split at ## headings (exactly 6 chunks)
-  -> nomic-embed-text (768 dimensions)
+corpus/*.pdf|docx
+  -> extract text
+  -> split on top-level numbered sections (512-token / 80 overlap fallback)
+  -> nomic-embed-text with search_document: prefix (768d)
   -> policy_chunks in PostgreSQL/pgvector
 
 question
-  -> embed the question
-  -> cosine distance search, LIMIT 3, ascending
-  -> generate from the nearest chunk only
+  -> retrieval strategy: vector | keyword | hybrid (default hybrid)
+  -> vector: search_query: embed + cosine top 8
+  -> keyword: ILIKE on text/title
+  -> hybrid: RRF merge (k=60)
+  -> CrossEncoder ms-marco-MiniLM-L-6-v2 -> top 3
+  -> generate with qwen3:8b from those excerpts
   -> cite stored metadata, or refuse with no citation
 ```
 
@@ -43,7 +50,7 @@ docker compose up --build --detach
 docker compose exec app bash
 python -m mini_rag_lab migrate
 python -m mini_rag_lab ingest
-python -m mini_rag_lab evaluate
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?"
 ```
 
 ## Package layout
@@ -55,7 +62,7 @@ src/mini_rag_lab/
 ├── runtime.py        # adapter and service wiring
 ├── migrations.py     # SQL migration runner
 ├── prompts/          # grounded generation system prompt
-├── domain/           # models, policy parsing, ports
+├── domain/           # models, chunking, ports
 ├── services/         # ingestion, retrieval, generation, query, evaluation
-└── adapters/         # Ollama and PostgreSQL/pgvector
+└── adapters/         # Ollama, pgvector, CrossEncoder
 ```

@@ -8,7 +8,7 @@ from mini_rag_lab.domain.models import RetrievedChunk
 from mini_rag_lab.services.retrieval import (
     CANDIDATE_N,
     RetrievalError,
-    merge_retrieval_results,
+    reciprocal_rank_fusion,
     retrieve_chunks,
 )
 
@@ -81,6 +81,28 @@ class RecordingRepository:
         return self.keyword[:limit]
 
 
+class FakeReranker:
+    """Keeps input order and stamps descending fake rerank scores."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.last_candidate_count: int | None = None
+
+    def rerank(
+        self,
+        question: str,
+        chunks: Sequence[RetrievedChunk],
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]:
+        self.calls += 1
+        self.last_candidate_count = len(chunks)
+        return [
+            chunk.model_copy(update={"rerank_score": float(100 - index)})
+            for index, chunk in enumerate(chunks[:limit])
+        ]
+
+
 def test_keyword_terms_keep_codes_and_drop_question_filler() -> None:
     assert keyword_terms("What does section 7.1 say about the refrigerator?") == [
         "7.1",
@@ -88,9 +110,10 @@ def test_keyword_terms_keep_codes_and_drop_question_filler() -> None:
     ]
 
 
-def test_hybrid_retrieval_requests_candidate_pool() -> None:
+def test_hybrid_retrieval_requests_candidate_pool_then_reranks() -> None:
     repository = RecordingRepository()
     provider = FakeEmbeddingProvider([[0.0] * 768])
+    reranker = FakeReranker()
 
     chunks = asyncio.run(
         retrieve_chunks(
@@ -99,14 +122,17 @@ def test_hybrid_retrieval_requests_candidate_pool() -> None:
             repository,
             embedding_dimensions=768,
             strategy="hybrid",
+            reranker=reranker,
         )
     )
 
-    assert chunks == [_chunk("vector-1")]
+    assert [chunk.chunk_id for chunk in chunks] == ["vector-1"]
+    assert chunks[0].rerank_score == 100.0
     assert repository.search_limit == CANDIDATE_N
     assert repository.keyword_limit == CANDIDATE_N
     assert provider.calls == 1
     assert provider.task == "search_query"
+    assert reranker.calls == 1
 
 
 def test_keyword_only_skips_embedding() -> None:
@@ -128,7 +154,7 @@ def test_keyword_only_skips_embedding() -> None:
     assert provider.calls == 0
 
 
-def test_merge_keeps_keyword_hit_ahead_of_vector_only_list() -> None:
+def test_rrf_includes_keyword_only_chunk_in_fused_candidates() -> None:
     keyword_hit = _chunk(
         "hr-policy:v2.0:section-7",
         section="7",
@@ -141,13 +167,15 @@ def test_merge_keeps_keyword_hit_ahead_of_vector_only_list() -> None:
         _chunk("c", section="3", distance=0.4),
     ]
 
-    vector_ids = {chunk.chunk_id for chunk in vector_only}
-    hybrid = merge_retrieval_results([keyword_hit], vector_only, limit=3)
+    fused = reciprocal_rank_fusion([keyword_hit], vector_only, limit=8)
 
-    assert keyword_hit.chunk_id not in vector_ids
-    assert hybrid[0].chunk_id == keyword_hit.chunk_id
-    assert keyword_hit.chunk_id in {chunk.chunk_id for chunk in hybrid}
-    assert len(hybrid) == 3
+    assert keyword_hit.chunk_id in {chunk.chunk_id for chunk in fused}
+    assert {chunk.chunk_id for chunk in fused} == {
+        keyword_hit.chunk_id,
+        "a",
+        "b",
+        "c",
+    }
 
 
 def test_hybrid_retrieve_includes_keyword_miss_from_vector() -> None:
@@ -164,6 +192,7 @@ def test_hybrid_retrieve_includes_keyword_miss_from_vector() -> None:
     ]
     repository = RecordingRepository(vector=vector_only, keyword=[keyword_hit])
     provider = FakeEmbeddingProvider([[0.0] * 768])
+    reranker = FakeReranker()
     question = "What does section 7.1 say about the refrigerator?"
 
     vector_chunks = asyncio.run(
@@ -173,6 +202,7 @@ def test_hybrid_retrieve_includes_keyword_miss_from_vector() -> None:
             repository,
             embedding_dimensions=768,
             strategy="vector",
+            reranker=reranker,
         )
     )
     hybrid_chunks = asyncio.run(
@@ -182,13 +212,14 @@ def test_hybrid_retrieve_includes_keyword_miss_from_vector() -> None:
             repository,
             embedding_dimensions=768,
             strategy="hybrid",
+            reranker=reranker,
         )
     )
 
     expected_id = keyword_hit.chunk_id
     assert expected_id not in {chunk.chunk_id for chunk in vector_chunks}
     assert expected_id in {chunk.chunk_id for chunk in hybrid_chunks}
-    assert hybrid_chunks[0].chunk_id == expected_id
+    assert reranker.last_candidate_count == 4
 
 
 @pytest.mark.parametrize(

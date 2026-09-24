@@ -11,10 +11,11 @@ from mini_rag_lab.domain.ports import (
     AnswerGenerator,
     ChunkRepository,
     EmbeddingProvider,
+    Reranker,
 )
 from mini_rag_lab.services.retrieval import retrieve_chunks
 
-GENERATION_CONTEXT_SIZE = 1
+GENERATION_CONTEXT_SIZE = 3
 
 
 class GroundedQueryService:
@@ -26,12 +27,14 @@ class GroundedQueryService:
         *,
         embedding_dimensions: int,
         max_cosine_distance: float,
+        reranker: Reranker | None = None,
     ) -> None:
         self._embedding_provider = embedding_provider
         self._repository = repository
         self._answer_generator = answer_generator
         self._embedding_dimensions = embedding_dimensions
         self._max_cosine_distance = max_cosine_distance
+        self._reranker = reranker
 
     async def ask(
         self,
@@ -46,11 +49,13 @@ class GroundedQueryService:
             self._repository,
             embedding_dimensions=self._embedding_dimensions,
             strategy=strategy,
+            reranker=self._reranker,
         )
         summaries = [
             RetrievedChunkSummary(
                 section=_section_label(chunk),
                 distance=chunk.distance,
+                rerank_score=chunk.rerank_score,
             )
             for chunk in chunks
         ]
@@ -58,10 +63,13 @@ class GroundedQueryService:
         if not chunks:
             return _refusal_response(summaries, strategy)
 
-        # Keyword-only hits use distance 0.0. Gate only when the nearest row
-        # came from vector search (positive cosine distance).
         nearest = chunks[0]
-        if nearest.distance > self._max_cosine_distance:
+        # After CrossEncoder, trust the rerank order. Cosine gate only applies
+        # when the top chunk has no rerank_score (vector-only distance check).
+        if (
+            nearest.rerank_score is None
+            and nearest.distance > self._max_cosine_distance
+        ):
             return _refusal_response(summaries, strategy)
 
         generation_context = chunks[:GENERATION_CONTEXT_SIZE]

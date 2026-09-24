@@ -3,11 +3,11 @@ import os
 
 import pytest
 
+from mini_rag_lab.adapters.cross_encoder import CrossEncoderReranker
 from mini_rag_lab.adapters.ollama import OllamaAnswerGenerator, OllamaEmbeddingProvider
 from mini_rag_lab.adapters.pgvector import PgVectorChunkRepository, create_pool
 from mini_rag_lab.config import get_settings
-from mini_rag_lab.domain.models import REFUSAL_ANSWER
-from mini_rag_lab.services.ingestion import ingest_policy
+from mini_rag_lab.services.ingestion import ingest_corpus
 from mini_rag_lab.services.query import GroundedQueryService
 
 pytestmark = [
@@ -17,15 +17,6 @@ pytestmark = [
         os.getenv("RUN_LIVE_TESTS") != "1",
         reason="set RUN_LIVE_TESTS=1 to use PostgreSQL and Ollama",
     ),
-]
-
-CASES = [
-    ("How much can I spend on food each day?", "1. Meals"),
-    ("Can I book first-class airfare?", "3. Airfare"),
-    ("My hotel costs $250. What do I need?", "2. Hotels"),
-    ("Do I need a receipt for a $20 taxi?", "5. Receipts"),
-    ("Can I claim a limousine upgrade?", "4. Ground Transportation"),
-    ("Does the company reimburse gym memberships?", None),
 ]
 
 
@@ -39,15 +30,14 @@ async def _run_live_pipeline() -> None:
 
     async with pool:
         repository = PgVectorChunkRepository(pool)
-        for _ in range(2):
-            chunks = await ingest_policy(
-                "policy.md",
-                embedding_provider,
-                repository,
-                embedding_model=settings.embedding_model,
-                embedding_dimensions=settings.embedding_dimensions,
-            )
-            assert len(chunks) == 6
+        chunks = await ingest_corpus(
+            "corpus",
+            embedding_provider,
+            repository,
+            embedding_model=settings.embedding_model,
+            embedding_dimensions=settings.embedding_dimensions,
+        )
+        assert len(chunks) >= 1
 
         async with pool.connection() as connection:
             cursor = await connection.execute(
@@ -55,11 +45,11 @@ async def _run_live_pipeline() -> None:
                 SELECT COUNT(*), MIN(vector_dims(embedding)),
                        MAX(vector_dims(embedding))
                 FROM policy_chunks
-                WHERE document = %s AND version = %s
-                """,
-                ("Employee Expense Policy", "2.0"),
+                """
             )
-            assert await cursor.fetchone() == (6, 768, 768)
+            count, min_dims, max_dims = await cursor.fetchone()
+            assert count == len(chunks)
+            assert min_dims == max_dims == 768
 
         service = GroundedQueryService(
             embedding_provider,
@@ -70,37 +60,22 @@ async def _run_live_pipeline() -> None:
             ),
             embedding_dimensions=settings.embedding_dimensions,
             max_cosine_distance=settings.max_cosine_distance,
+            reranker=CrossEncoderReranker(settings.reranker_model),
         )
 
-        responses = {}
-        for question, expected_section in CASES:
-            response = await service.ask(question)
-            responses[expected_section] = response
-            distances = [item.distance for item in response.retrieved_chunks]
-            assert len(distances) <= 3
-            assert distances == sorted(distances)
-
-            if expected_section is None:
-                assert response.answer == REFUSAL_ANSWER
-                assert response.citation is None
-            else:
-                assert response.citation is not None
-                assert response.citation.section == expected_section
-                assert expected_section in [
-                    item.section for item in response.retrieved_chunks
-                ]
-
-        assert "$65" in responses["1. Meals"].answer
-        airfare = responses["3. Airfare"].answer.lower()
-        assert all(term in airfare for term in ("economy", "business", "approval"))
-        hotel = responses["2. Hotels"].answer.lower()
-        assert all(term in hotel for term in ("manager", "approve", "before booking"))
-        receipt = responses["5. Receipts"].answer.lower()
-        assert receipt.startswith("no") and "$25" in receipt
-        assert (
-            "not reimbursable" in responses["4. Ground Transportation"].answer.lower()
+        question = "What does section 7.1 say about the refrigerator?"
+        response = await service.ask(question, strategy="hybrid")
+        assert response.retrieval_strategy == "hybrid"
+        assert response.answer
+        assert response.citation is not None
+        assert response.retrieved_chunks
+        assert len(response.retrieved_chunks) <= 3
+        assert all(
+            item.rerank_score is not None for item in response.retrieved_chunks
         )
+        scores = [item.rerank_score for item in response.retrieved_chunks]
+        assert scores == sorted(scores, reverse=True)
 
 
-def test_all_six_assignment_questions() -> None:
+def test_corpus_hybrid_pipeline() -> None:
     asyncio.run(_run_live_pipeline())

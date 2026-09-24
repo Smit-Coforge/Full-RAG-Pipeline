@@ -1,18 +1,21 @@
-# Required question results
+# Required question results (legacy mini-lab)
 
-Saved output from `python -m mini_rag_lab evaluate` on 20 September 2026.
-All six assignment questions passed.
+> **Note:** These six expense-policy questions are from the first mini-lab
+> harness. The product default is now the Doofenshmirtz `corpus/` (PDF/DOCX).
+> `evaluate` is kept as-is until the next assignment point replaces it with a
+> ≥8-question corpus harness. Do not expect these cases to pass against a
+> corpus-only ingest.
 
-Reproduce with:
+Saved output from `python -m mini_rag_lab evaluate` on 20 September 2026
+(against the old Markdown expense policy). All six questions passed then.
+
+Reproduce (Markdown expense policy only):
 
 ```shell
 python -m mini_rag_lab migrate
-python -m mini_rag_lab ingest
+python -m mini_rag_lab ingest --policy path/to/expense-policy.md
 python -m mini_rag_lab evaluate
 ```
-
-The same cases are also covered by
-`tests/integration/test_live_pipeline.py` when `RUN_LIVE_TESTS=1`.
 
 ## Summary
 

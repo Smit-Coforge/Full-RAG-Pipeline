@@ -28,6 +28,7 @@ class EmbeddedChunk(PolicyChunk):
 
 class RetrievedChunk(PolicyChunk):
     distance: float
+    rerank_score: float | None = None
 
 
 class AskRequest(StrictModel):
@@ -43,6 +44,7 @@ class Citation(StrictModel):
 class RetrievedChunkSummary(StrictModel):
     section: NonEmptyString
     distance: float
+    rerank_score: float | None = None
 
 
 class GenerationDecision(StrictModel):

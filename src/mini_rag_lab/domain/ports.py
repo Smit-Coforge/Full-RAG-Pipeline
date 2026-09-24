@@ -43,3 +43,13 @@ class ChunkRepository(Protocol):
         *,
         limit: int,
     ) -> list[RetrievedChunk]: ...
+
+
+class Reranker(Protocol):
+    def rerank(
+        self,
+        question: str,
+        chunks: Sequence[RetrievedChunk],
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]: ...

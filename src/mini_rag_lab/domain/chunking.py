@@ -16,6 +16,11 @@ class PolicyFormatError(ValueError):
 
 
 def parse_policy(markdown: str) -> list[PolicyChunk]:
+    """Parse a legacy six-section Markdown expense policy.
+
+    Kept for optional ``ingest --policy file.md``. Corpus PDF/DOCX uses
+    :func:`load_policy_file` instead.
+    """
     lines = markdown.splitlines()
     if not lines:
         raise PolicyFormatError("policy document is empty")

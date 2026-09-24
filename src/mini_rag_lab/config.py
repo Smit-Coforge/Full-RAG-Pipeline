@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     generation_model: str = "qwen3:8b"
     generation_thinking: bool = False
     max_cosine_distance: float = Field(default=0.4, ge=0, le=2)
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
 @lru_cache

@@ -57,6 +57,10 @@ async def ingest_policy(
     embedding_model: str,
     embedding_dimensions: int,
 ) -> list[EmbeddedChunk]:
+    """Optional Markdown path: exactly six ``##`` sections (legacy mini-lab).
+
+    Prefer :func:`ingest_corpus` for the default PDF/DOCX product path.
+    """
     markdown = Path(policy_path).read_text(encoding="utf-8")
     embedded_chunks = await _embed_chunks(
         parse_policy(markdown),

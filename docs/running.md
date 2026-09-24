@@ -1,7 +1,8 @@
 # Running Mini RAG Lab
 
 The application is a CLI. Docker runs the app and PostgreSQL/pgvector. Ollama
-runs on the host machine.
+runs on the host machine. The default corpus is the PDF/DOCX files under
+`corpus/`.
 
 ## Prerequisites
 
@@ -36,19 +37,31 @@ Enter the app container:
 docker compose exec app bash
 ```
 
-## Ingestion command
-
-There is no separate ingest script to upload. Ingestion is this command, which
-is part of the application source:
+## Ingestion
 
 ```shell
 python -m mini_rag_lab migrate
 python -m mini_rag_lab ingest
 ```
 
-`migrate` applies `migrations/001_create_policy_chunks.sql`. `ingest` reads
-`policy.md`, splits it into six sections, embeds each section, and stores the
-rows in PostgreSQL.
+`migrate` applies `migrations/001_create_policy_chunks.sql`.
+
+`ingest` defaults to `--policy corpus`. Every `.pdf` / `.docx` in that directory
+is chunked, embedded with a `search_document:` prefix, and upserted. Re-ingest
+replaces each document version; it does not delete unrelated documents left
+from an older ingest.
+
+Optional Markdown path (exactly six `##` sections, legacy mini-lab shape):
+
+```shell
+python -m mini_rag_lab ingest --policy path/to/policy.md
+```
+
+Successful corpus ingest prints a multi-document report, for example:
+
+```json
+{"documents": [{"document": "HR Policy", "version": "1.0", "chunks_stored": 9}], "chunks_stored": 63}
+```
 
 Equivalent entry point after install:
 
@@ -57,29 +70,32 @@ mini-rag-lab migrate
 mini-rag-lab ingest
 ```
 
-Successful ingest prints:
-
-```json
-{"document": "Employee Expense Policy", "version": "2.0", "chunks_stored": 6}
-```
-
 ## Ask a question
 
 ```shell
-python -m mini_rag_lab ask "How much can I spend on food each day?"
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?"
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --strategy vector
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --strategy keyword
 ```
 
-The command prints the assignment JSON shape: `answer`, `citation`, and up to
-three `retrieved_chunks` with numeric cosine distances in ascending order.
+Default `--strategy` is `hybrid`: cosine + `ILIKE`, RRF merge, then MiniLM
+CrossEncoder top 3. The JSON includes `answer`, `citation`,
+`retrieved_chunks` (with `distance` and `rerank_score`), and
+`retrieval_strategy`.
 
-## Run the six required questions
+First ask in a process loads the CrossEncoder weights into memory (and may
+show a Hugging Face Hub warning without `HF_TOKEN`).
+
+## Legacy evaluate (six expense-policy questions)
 
 ```shell
 python -m mini_rag_lab evaluate
 ```
 
-Exit code `0` means all six questions passed. Saved output is in
-`docs/required-questions.md`.
+This still runs the first mini-lab meal/airfare/hotel cases against whatever
+is in the database. It will not match the Doofenshmirtz corpus. Saved output
+from that harness is in `docs/required-questions.md`. A new ≥8-question
+corpus harness replaces this in a later lab part.
 
 ## Tests
 
@@ -87,6 +103,12 @@ Exit code `0` means all six questions passed. Saved output is in
 python -m pytest tests/unit
 RUN_INTEGRATION_TESTS=1 python -m pytest tests/integration/test_database.py
 RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_pipeline.py
+```
+
+## Minimal embed proof
+
+```shell
+python scripts/minimal_embed_retrieve.py
 ```
 
 ## Stop

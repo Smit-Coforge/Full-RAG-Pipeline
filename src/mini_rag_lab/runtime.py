@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from psycopg_pool import AsyncConnectionPool
 
+from mini_rag_lab.adapters.cross_encoder import CrossEncoderReranker
 from mini_rag_lab.adapters.ollama import OllamaAnswerGenerator, OllamaEmbeddingProvider
 from mini_rag_lab.adapters.pgvector import PgVectorChunkRepository, create_pool
 from mini_rag_lab.config import Settings, get_settings
@@ -15,6 +16,7 @@ class ApplicationRuntime:
     embedding_provider: OllamaEmbeddingProvider
     repository: PgVectorChunkRepository
     answer_generator: OllamaAnswerGenerator
+    reranker: CrossEncoderReranker
     service: GroundedQueryService
 
     async def close(self) -> None:
@@ -40,12 +42,14 @@ async def create_runtime(settings: Settings | None = None) -> ApplicationRuntime
         resolved_settings.generation_model,
         thinking=resolved_settings.generation_thinking,
     )
+    reranker = CrossEncoderReranker(resolved_settings.reranker_model)
     service = GroundedQueryService(
         embedding_provider,
         repository,
         answer_generator,
         embedding_dimensions=resolved_settings.embedding_dimensions,
         max_cosine_distance=resolved_settings.max_cosine_distance,
+        reranker=reranker,
     )
     return ApplicationRuntime(
         settings=resolved_settings,
@@ -53,5 +57,6 @@ async def create_runtime(settings: Settings | None = None) -> ApplicationRuntime
         embedding_provider=embedding_provider,
         repository=repository,
         answer_generator=answer_generator,
+        reranker=reranker,
         service=service,
     )

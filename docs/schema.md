@@ -1,6 +1,6 @@
 # Database schema
 
-The assignment schema lives in `migrations/001_create_policy_chunks.sql`.
+The schema lives in `migrations/001_create_policy_chunks.sql`.
 Apply it with:
 
 ```shell
@@ -15,25 +15,34 @@ mini-rag-lab migrate
 
 ## What is stored
 
-Each row is one numbered section from `policy.md`. The table keeps the original
-section text, the embedding vector, and the metadata needed for citations in
-the same record.
+Each row is one policy section chunk (from `corpus/` PDF/DOCX by default, or
+from an optional Markdown file via `ingest --policy file.md`). The table keeps
+the section text, the embedding vector, and citation metadata in the same
+record.
 
 | Column | Purpose |
 | --- | --- |
-| `chunk_id` | Stable ID, for example `expense-policy:v2.0:section-1` |
-| `document` | Document title (`Employee Expense Policy`) |
+| `chunk_id` | Stable ID, for example `hr-policy:v2.0:section-7` |
+| `document` | Document title (`HR Policy`) |
 | `version` | Document version (`2.0`) |
-| `section` | Section number (`1` through `6`) |
-| `section_title` | Section heading (`Meals`) |
-| `text` | Original section body, not truncated |
-| `embedding` | Full 768-dimension `nomic-embed-text` vector |
+| `section` | Section number (`7`) |
+| `section_title` | Section heading (`Shared Refrigerator Policy`) |
+| `text` | Section body used for generation and keyword search |
+| `embedding` | 768-dimension `nomic-embed-text` vector (`search_document:` at embed time) |
 | `embedding_model` | Model that produced the vector |
 | `created_at`, `updated_at` | Row timestamps |
 
-`UNIQUE (document, version, section)` prevents duplicate sections for one
-policy version. Re-running ingest replaces that version in one transaction and
-leaves exactly six rows.
+`chunk_id` is the primary key. Re-running ingest for one document version
+replaces that version’s rows in one transaction. Other documents in the table
+are left alone.
+
+`UNIQUE (document, version, section)` assumes at most one row per section
+number for a version. The chunker can emit `-part-2` ids if a section exceeds
+the 512-token cap; those parts share the same `section` value and would
+conflict with this unique constraint. The current corpus never hits that
+split. If you need multi-part sections in the DB, widen the unique key (for
+example include `chunk_id` only, or add a `part` column) in a follow-up
+migration.
 
 ## Migration SQL
 
@@ -55,9 +64,14 @@ CREATE TABLE IF NOT EXISTS policy_chunks (
 );
 ```
 
-Retrieval uses cosine distance:
+## Retrieval (application, not only SQL)
+
+Vector branch (candidate pool):
 
 ```sql
 ORDER BY embedding <=> :query_vector ASC
-LIMIT 3;
+LIMIT 8;
 ```
+
+Keyword branch uses `ILIKE` on `text` and `section_title`. Hybrid merges both
+lists with RRF, then a CrossEncoder keeps the final top 3.

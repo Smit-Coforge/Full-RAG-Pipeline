@@ -1,1 +1,1 @@
-"""Grounded expense-policy RAG assistant."""
+"""Mini RAG Lab: grounded policy RAG with Ollama and pgvector."""

@@ -24,12 +24,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="directory containing SQL migrations",
     )
 
-    ingest = commands.add_parser("ingest", help="embed and store policy sections")
+    ingest = commands.add_parser(
+        "ingest",
+        help="embed and store policy sections from corpus/ (or optional Markdown)",
+    )
     ingest.add_argument(
         "--policy",
         type=Path,
         default=Path("corpus"),
-        help="corpus directory, or a Markdown policy file",
+        help="corpus directory (default), or a six-section Markdown policy file",
     )
 
     ask = commands.add_parser("ask", help="ask one grounded policy question")
@@ -41,7 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="retrieval path: vector, keyword (ILIKE), or hybrid",
     )
 
-    commands.add_parser("evaluate", help="run the six required questions")
+    commands.add_parser(
+        "evaluate",
+        help="run the legacy six expense-policy questions (pending corpus harness rewrite)",
+    )
     return parser
 
 

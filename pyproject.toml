@@ -1,7 +1,7 @@
 [project]
 name = "mini-rag-lab"
 version = "0.1.0"
-description = "Grounded expense-policy RAG assistant"
+description = "Mini RAG Lab: grounded policy RAG with hybrid retrieval, RRF, MiniLM rerank, Ollama, and pgvector"
 readme = "README.md"
 authors = [
     { name = "Smit-Coforge", email = "smit.panchal@coforge.com" }
@@ -15,6 +15,7 @@ dependencies = [
     "pypdf>=5,<7",
     "python-docx>=1.1,<2",
     "scikit-learn>=1.5,<2",
+    "sentence-transformers>=3.0,<6",
 ]
 
 [project.scripts]
@@ -46,6 +47,6 @@ target-version = "py312"
 python_version = "3.12"
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*"]
+module = ["sklearn.*", "sentence_transformers.*"]
 ignore_missing_imports = true
 
