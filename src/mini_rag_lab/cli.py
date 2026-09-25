@@ -8,7 +8,11 @@ from mini_rag_lab.config import get_settings
 from mini_rag_lab.domain.models import EmbeddedChunk
 from mini_rag_lab.migrations import apply_migrations
 from mini_rag_lab.runtime import create_runtime
-from mini_rag_lab.services.evaluation import evaluate_required_questions
+from mini_rag_lab.services.evaluation import (
+    evaluate_required_questions,
+    format_cli_metrics,
+    write_eval_run,
+)
 from mini_rag_lab.services.ingestion import ingest_corpus, ingest_policy
 
 
@@ -50,9 +54,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    commands.add_parser(
+    evaluate = commands.add_parser(
         "evaluate",
-        help="run the legacy six expense-policy questions (pending corpus harness rewrite)",
+        help="run the ≥8 corpus harness; write a table report under eval_runs/",
+    )
+    evaluate.add_argument(
+        "--jev",
+        action="store_true",
+        help=(
+            "optional: let Jev choose vector|keyword|hybrid for each case "
+            "(requires TYPESAFE_API_KEY); default evaluate always uses hybrid"
+        ),
     )
     return parser
 
@@ -105,14 +117,18 @@ async def _ingest(args: argparse.Namespace) -> int:
     return 0
 
 
-async def _evaluate() -> int:
+async def _evaluate(args: argparse.Namespace) -> int:
     runtime = await create_runtime()
     try:
-        result = await evaluate_required_questions(runtime.service)
+        result = await evaluate_required_questions(
+            runtime.service,
+            use_jev=args.jev,
+        )
+        write_eval_run(result, runtime.settings, use_jev=args.jev)
     finally:
         await runtime.close()
 
-    _print_json(result)
+    print(format_cli_metrics(result))
     return 0 if result["passed"] else 1
 
 
@@ -137,7 +153,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "ingest":
         return asyncio.run(_ingest(args))
     if args.command == "evaluate":
-        return asyncio.run(_evaluate())
+        return asyncio.run(_evaluate(args))
     if args.command == "ask":
         return asyncio.run(_ask(args))
     raise AssertionError(f"unhandled command: {args.command}")

@@ -122,24 +122,104 @@ def test_ingest_command_defaults_to_corpus_directory(monkeypatch, capsys) -> Non
     }
 
 
-def test_evaluate_command_returns_failure_exit_code(monkeypatch, capsys) -> None:
-    runtime = SimpleNamespace(service=object(), close=AsyncMock())
+def test_evaluate_command_returns_failure_exit_code(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    settings = SimpleNamespace(
+        embedding_model="nomic-embed-text",
+        embedding_dimensions=768,
+        generation_model="qwen3:8b",
+        generation_thinking=False,
+        max_cosine_distance=0.4,
+        reranker_model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        jev_model="jev-latest",
+    )
+    runtime = SimpleNamespace(
+        service=object(),
+        settings=settings,
+        close=AsyncMock(),
+    )
     monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
     evaluate = AsyncMock(
         return_value={
             "passed": False,
             "passed_count": 5,
             "total": 6,
+            "metrics": {
+                "retrieval_recall_pass_count": 5,
+                "citation_pass_count": 5,
+                "answer_terms_pass_count": 4,
+                "answerable_total": 5,
+                "refusal_pass_count": 0,
+                "refusal_total": 1,
+            },
+            "results": [
+                {
+                    "question": "q",
+                    "expected_document": None,
+                    "expected_version": None,
+                    "expected_section": None,
+                    "passed": False,
+                    "checks": {"exact_refusal": False, "no_citation": True},
+                    "response": {"answer": "nope", "citation": None},
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr(cli, "evaluate_required_questions", evaluate)
+    monkeypatch.setattr(
+        cli,
+        "write_eval_run",
+        lambda result, s, use_jev=False: tmp_path / "eval-test.md",
+    )
+
+    assert cli.main(["evaluate"]) == 1
+
+    evaluate.assert_awaited_once_with(runtime.service, use_jev=False)
+    runtime.close.assert_awaited_once()
+    out = capsys.readouterr().out
+    assert "wrote" not in out.lower()
+    assert "Overall" not in out
+    assert "| Question |" not in out
+    assert "Retrieval recall" in out
+    assert "Answer accuracy" in out
+    assert "| Metric |" not in out
+
+
+def test_evaluate_command_passes_jev_flag(monkeypatch, capsys, tmp_path) -> None:
+    settings = SimpleNamespace(
+        embedding_model="nomic-embed-text",
+        embedding_dimensions=768,
+        generation_model="qwen3:8b",
+        generation_thinking=False,
+        max_cosine_distance=0.4,
+        reranker_model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        jev_model="jev-latest",
+    )
+    runtime = SimpleNamespace(
+        service=object(),
+        settings=settings,
+        close=AsyncMock(),
+    )
+    monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
+    evaluate = AsyncMock(
+        return_value={
+            "passed": True,
+            "passed_count": 1,
+            "total": 1,
+            "metrics": {},
             "results": [],
         }
     )
     monkeypatch.setattr(cli, "evaluate_required_questions", evaluate)
+    monkeypatch.setattr(
+        cli,
+        "write_eval_run",
+        lambda result, s, use_jev=False: tmp_path / "eval-test.md",
+    )
 
-    assert cli.main(["evaluate"]) == 1
-
-    evaluate.assert_awaited_once_with(runtime.service)
-    runtime.close.assert_awaited_once()
-    assert json.loads(capsys.readouterr().out)["passed"] is False
+    assert cli.main(["evaluate", "--jev"]) == 0
+    evaluate.assert_awaited_once_with(runtime.service, use_jev=True)
 
 
 def test_ask_command_prints_structured_json(monkeypatch, capsys) -> None:
@@ -150,7 +230,14 @@ def test_ask_command_prints_structured_json(monkeypatch, capsys) -> None:
             version="1.0",
             section="1. Test",
         ),
-        retrieved_chunks=[RetrievedChunkSummary(section="1. Test", distance=0.1)],
+        retrieved_chunks=[
+            RetrievedChunkSummary(
+                document="Policy",
+                version="1.0",
+                section="1. Test",
+                distance=0.1,
+            )
+        ],
     )
     service = SimpleNamespace(ask=AsyncMock(return_value=response))
     runtime = SimpleNamespace(service=service, close=AsyncMock())
@@ -176,6 +263,8 @@ def test_ask_command_prints_unicode_without_escapes(monkeypatch, capsys) -> None
         ),
         retrieved_chunks=[
             RetrievedChunkSummary(
+                document="Preparedness Policy",
+                version="2.0",
                 section="4. Nuclear Apocalypse Protocol — Updated",
                 distance=0.2,
             )
@@ -198,7 +287,12 @@ def test_ask_command_passes_jev_flag(monkeypatch, capsys) -> None:
         answer="Grounded answer",
         citation=None,
         retrieved_chunks=[
-            RetrievedChunkSummary(section="7. Refrigerator", distance=0.0)
+            RetrievedChunkSummary(
+                document="HR Policy",
+                version="2.0",
+                section="7. Refrigerator",
+                distance=0.0,
+            )
         ],
         retrieval_strategy="keyword",
     )

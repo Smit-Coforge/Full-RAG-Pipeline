@@ -90,16 +90,19 @@ is not called.
 First ask in a process loads the CrossEncoder weights into memory (and may
 show a Hugging Face Hub warning without `HF_TOKEN`).
 
-## Legacy evaluate (six expense-policy questions)
+## Corpus evaluate (≥8 fixed questions)
 
 ```shell
 python -m mini_rag_lab evaluate
 ```
 
-This still runs the first mini-lab meal/airfare/hotel cases against whatever
-is in the database. It will not match the Doofenshmirtz corpus. Saved output
-from that harness is in `docs/required-questions.md`. A new ≥8-question
-corpus harness replaces this in a later lab part.
+Runs the Doofenshmirtz corpus harness: retrieval recall, citation match, and
+answer-term checks (plus one refusal). Prints plain metric lines (recall,
+accuracy, latency) to the terminal and writes the full per-case table under
+`eval_runs/` (gitignored) with model metadata (`jev: not used` or the Jev model
+name when `--jev` is passed). Case list and scoring notes are in
+`docs/required-questions.md`. Unit tests cover the scorer without Ollama.
+
 
 ## Tests
 

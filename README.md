@@ -18,7 +18,7 @@ a single six-section `##` policy file; the default product path is `corpus/`.
 | Database schema | `migrations/001_create_policy_chunks.sql` and [docs/schema.md](docs/schema.md) |
 | Architecture decisions | [docs/adr/](docs/adr/) |
 | Run instructions | [docs/running.md](docs/running.md) |
-| Legacy six-question evaluate | [docs/required-questions.md](docs/required-questions.md) (first mini-lab harness; to be replaced by the new eval suite) |
+| Corpus evaluate harness (≥8 cases) | [docs/required-questions.md](docs/required-questions.md) |
 
 ## How the pipeline works
 

@@ -42,6 +42,8 @@ class Citation(StrictModel):
 
 
 class RetrievedChunkSummary(StrictModel):
+    document: NonEmptyString
+    version: NonEmptyString
     section: NonEmptyString
     distance: float
     rerank_score: float | None = None

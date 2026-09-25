@@ -66,6 +66,8 @@ class GroundedQueryService:
         )
         summaries = [
             RetrievedChunkSummary(
+                document=chunk.document,
+                version=chunk.version,
                 section=_section_label(chunk),
                 distance=chunk.distance,
                 rerank_score=chunk.rerank_score,
