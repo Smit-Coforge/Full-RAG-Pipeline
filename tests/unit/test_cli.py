@@ -158,9 +158,40 @@ def test_ask_command_prints_structured_json(monkeypatch, capsys) -> None:
 
     assert cli.main(["ask", "What is covered?"]) == 0
 
-    service.ask.assert_awaited_once_with("What is covered?", strategy="hybrid")
+    service.ask.assert_awaited_once_with(
+        "What is covered?",
+        strategy="hybrid",
+        use_router=False,
+    )
     runtime.close.assert_awaited_once()
     assert json.loads(capsys.readouterr().out) == response.model_dump(mode="json")
+
+
+def test_ask_command_prints_unicode_without_escapes(monkeypatch, capsys) -> None:
+    response = AskResponse(
+        answer="Use the fridge",
+        citation=Citation(
+            document="Preparedness Policy",
+            version="2.0",
+            section="4. Nuclear Apocalypse Protocol — Updated",
+        ),
+        retrieved_chunks=[
+            RetrievedChunkSummary(
+                section="4. Nuclear Apocalypse Protocol — Updated",
+                distance=0.2,
+            )
+        ],
+    )
+    service = SimpleNamespace(ask=AsyncMock(return_value=response))
+    runtime = SimpleNamespace(service=service, close=AsyncMock())
+    monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
+
+    assert cli.main(["ask", "Where to shelter?"]) == 0
+
+    raw = capsys.readouterr().out
+    assert "\\u2014" not in raw
+    assert "—" in raw
+    assert json.loads(raw)["citation"]["section"].endswith("Updated")
 
 
 def test_ask_command_passes_keyword_strategy(monkeypatch, capsys) -> None:
@@ -191,5 +222,37 @@ def test_ask_command_passes_keyword_strategy(monkeypatch, capsys) -> None:
     service.ask.assert_awaited_once_with(
         "What does section 7.1 say about the refrigerator?",
         strategy="keyword",
+        use_router=False,
     )
     assert json.loads(capsys.readouterr().out)["retrieval_strategy"] == "keyword"
+
+
+def test_ask_command_passes_router_flag(monkeypatch, capsys) -> None:
+    response = AskResponse(
+        answer="Grounded answer",
+        citation=None,
+        retrieved_chunks=[
+            RetrievedChunkSummary(section="7. Refrigerator", distance=0.0)
+        ],
+        retrieval_strategy="keyword",
+    )
+    service = SimpleNamespace(ask=AsyncMock(return_value=response))
+    runtime = SimpleNamespace(service=service, close=AsyncMock())
+    monkeypatch.setattr(cli, "create_runtime", AsyncMock(return_value=runtime))
+
+    assert (
+        cli.main(
+            [
+                "ask",
+                "What does section 7.1 say about the refrigerator?",
+                "--router",
+            ]
+        )
+        == 0
+    )
+
+    service.ask.assert_awaited_once_with(
+        "What does section 7.1 say about the refrigerator?",
+        strategy="hybrid",
+        use_router=True,
+    )

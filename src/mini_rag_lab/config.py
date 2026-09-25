@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     generation_thinking: bool = False
     max_cosine_distance: float = Field(default=0.4, ge=0, le=2)
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    typesafe_api_key: str | None = None
+    jev_model: str = "jev-latest"
+    jev_systemone_url: str = "https://api.typesafe.ai/v1/systemone"
 
 
 @lru_cache

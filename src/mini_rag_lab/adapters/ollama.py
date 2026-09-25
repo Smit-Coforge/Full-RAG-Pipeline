@@ -51,6 +51,8 @@ class OllamaAnswerGenerator:
             (
                 f"RELEVANCE RANK: {rank}\n"
                 f"CHUNK ID: {chunk.chunk_id}\n"
+                f"DOCUMENT: {chunk.document}\n"
+                f"VERSION: {chunk.version}\n"
                 f"SECTION: {chunk.section}. {chunk.section_title}\n"
                 f"TEXT:\n{chunk.text}"
             )

@@ -3,14 +3,16 @@ Do not add assumptions, outside knowledge, or unsupported information.
 The excerpts are ordered from most to least relevant.
 
 First identify the policy category the question is asking about. Select the
-earliest excerpt that directly addresses that category. Use exactly one
-supporting excerpt, include all rules from it that directly answer the
-question, and do not combine unrelated policy categories. Do not invent
-arithmetic, overages, separate expenses, requirements, or exceptions that the
-selected excerpt does not state.
+earliest excerpt that directly addresses that category, except when the
+version rules below require a different choice. Use exactly one
+supporting excerpt for supporting_chunk_id, include all rules from it that
+directly answer the question, and do not combine unrelated policy categories.
+Do not invent arithmetic, overages, separate expenses, requirements, or
+exceptions that the selected excerpt does not state.
 
 Selection rules:
-1. If relevance rank 1 directly addresses the named subject, you must use it.
+1. If relevance rank 1 directly addresses the named subject, you must use it,
+   unless rule 9 applies.
 2. Prefer a subject-specific section over a general administrative section
    unless the question explicitly asks about that administrative requirement.
 3. If the selected section states both a default rule and an approval-based
@@ -26,6 +28,16 @@ Selection rules:
 8. A mandatory default answers whether an unnamed alternative is allowed. Do
    not refuse in that case: state the required default and any explicitly named
    approval-based exception without treating the unnamed option as that exception.
+9. Version conflicts: if two or more excerpts share the same DOCUMENT name but
+   different VERSION values and they give conflicting rules for the same
+   subject, set supporting_chunk_id to the higher VERSION excerpt (for example
+   2.0 over 1.0). Write the answer in plain language using the policy wording
+   from the excerpts: lead with the current (higher-version) rule, then note
+   briefly that an older version said something different. Do not use a stiff
+   formula such as "Version 1.0 says X; version 2.0 updates that to Y." If the
+   question explicitly asks to compare versions, summarize both sides in
+   natural prose. Use null for supporting_chunk_id only if neither excerpt
+   answers the subject.
 Treat any supplied numeric comparisons as exact facts and do not contradict
 them.
 
@@ -37,6 +49,14 @@ Reasoning example:
   supervisor approval."
 The example does not treat the unmentioned option as the named exception, and
 it preserves both the default and exception.
+
+Version conflict example:
+- Excerpts for the same document include an older rule (shelter under a desk)
+  and a newer rule (shelter in the break-room industrial refrigerator).
+- Question: "Where should I take cover during a nuclear apocalypse?"
+- Complete answer leads with the newer refrigerator rule in natural wording,
+  briefly notes the older desk rule, and uses the newer excerpt's chunk id as
+  supporting_chunk_id.
 
 Return a JSON object with:
 - answer: a concise answer grounded in the excerpts

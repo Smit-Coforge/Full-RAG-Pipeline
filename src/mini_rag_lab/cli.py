@@ -12,6 +12,10 @@ from mini_rag_lab.services.evaluation import evaluate_required_questions
 from mini_rag_lab.services.ingestion import ingest_corpus, ingest_policy
 
 
+def _print_json(payload: object) -> None:
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mini-rag-lab")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -43,6 +47,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="hybrid",
         help="retrieval path: vector, keyword (ILIKE), or hybrid",
     )
+    ask.add_argument(
+        "--router",
+        action="store_true",
+        help=(
+            "let Jev choose vector|keyword|hybrid (requires TYPESAFE_API_KEY); "
+            "when set, --strategy is ignored"
+        ),
+    )
 
     commands.add_parser(
         "evaluate",
@@ -54,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
 async def _migrate(args: argparse.Namespace) -> int:
     settings = get_settings()
     applied = await apply_migrations(settings.database_url, args.directory)
-    print(json.dumps({"applied": applied}))
+    _print_json({"applied": applied})
     return 0
 
 
@@ -95,7 +107,7 @@ async def _ingest(args: argparse.Namespace) -> int:
     finally:
         await runtime.close()
 
-    print(json.dumps(_ingest_report(chunks)))
+    _print_json(_ingest_report(chunks))
     return 0
 
 
@@ -106,7 +118,7 @@ async def _evaluate() -> int:
     finally:
         await runtime.close()
 
-    print(json.dumps(result, indent=2))
+    _print_json(result)
     return 0 if result["passed"] else 1
 
 
@@ -116,11 +128,12 @@ async def _ask(args: argparse.Namespace) -> int:
         response = await runtime.service.ask(
             args.question,
             strategy=args.strategy,
+            use_router=args.router,
         )
     finally:
         await runtime.close()
 
-    print(json.dumps(response.model_dump(mode="json"), indent=2))
+    _print_json(response.model_dump(mode="json"))
     return 0
 
 

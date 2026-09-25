@@ -12,6 +12,7 @@ from mini_rag_lab.domain.ports import (
     ChunkRepository,
     EmbeddingProvider,
     Reranker,
+    StrategyRouter,
 )
 from mini_rag_lab.services.retrieval import retrieve_chunks
 
@@ -28,6 +29,7 @@ class GroundedQueryService:
         embedding_dimensions: int,
         max_cosine_distance: float,
         reranker: Reranker | None = None,
+        strategy_router: StrategyRouter | None = None,
     ) -> None:
         self._embedding_provider = embedding_provider
         self._repository = repository
@@ -35,20 +37,31 @@ class GroundedQueryService:
         self._embedding_dimensions = embedding_dimensions
         self._max_cosine_distance = max_cosine_distance
         self._reranker = reranker
+        self._strategy_router = strategy_router
 
     async def ask(
         self,
         question: str,
         *,
         strategy: RetrievalStrategy = "hybrid",
+        use_router: bool = False,
     ) -> AskResponse:
         request = AskRequest(question=question)
+        resolved = strategy
+        if use_router:
+            if self._strategy_router is None:
+                raise RuntimeError(
+                    "use_router=True but no strategy_router is configured; "
+                    "set TYPESAFE_API_KEY in .env"
+                )
+            resolved = await self._strategy_router.choose(request.question)
+
         chunks = await retrieve_chunks(
             request.question,
             self._embedding_provider,
             self._repository,
             embedding_dimensions=self._embedding_dimensions,
-            strategy=strategy,
+            strategy=resolved,
             reranker=self._reranker,
         )
         summaries = [
@@ -61,7 +74,7 @@ class GroundedQueryService:
         ]
 
         if not chunks:
-            return _refusal_response(summaries, strategy)
+            return _refusal_response(summaries, resolved)
 
         nearest = chunks[0]
         # After CrossEncoder, trust the rerank order. Cosine gate only applies
@@ -70,7 +83,7 @@ class GroundedQueryService:
             nearest.rerank_score is None
             and nearest.distance > self._max_cosine_distance
         ):
-            return _refusal_response(summaries, strategy)
+            return _refusal_response(summaries, resolved)
 
         generation_context = chunks[:GENERATION_CONTEXT_SIZE]
         decision = await self._answer_generator.generate(
@@ -86,7 +99,7 @@ class GroundedQueryService:
             None,
         )
         if supporting_chunk is None or decision.answer == REFUSAL_ANSWER:
-            return _refusal_response(summaries, strategy)
+            return _refusal_response(summaries, resolved)
 
         return AskResponse(
             answer=decision.answer,
@@ -96,7 +109,7 @@ class GroundedQueryService:
                 section=_section_label(supporting_chunk),
             ),
             retrieved_chunks=summaries,
-            retrieval_strategy=strategy,
+            retrieval_strategy=resolved,
         )
 
 

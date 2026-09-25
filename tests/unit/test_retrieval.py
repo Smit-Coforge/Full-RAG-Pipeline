@@ -10,6 +10,7 @@ from mini_rag_lab.services.retrieval import (
     RetrievalError,
     reciprocal_rank_fusion,
     retrieve_chunks,
+    select_generation_context,
 )
 
 
@@ -243,3 +244,25 @@ def test_retrieval_rejects_invalid_question_embeddings(
                 strategy="vector",
             )
         )
+
+
+def test_select_generation_context_prefers_newer_version_pair() -> None:
+    older = _chunk("prep-v1-s4", section="4", text="under desk", distance=0.1)
+    older = older.model_copy(
+        update={"document": "Preparedness Policy", "version": "1.0"}
+    )
+    newer = _chunk("prep-v2-s4", section="4", text="refrigerator", distance=0.2)
+    newer = newer.model_copy(
+        update={"document": "Preparedness Policy", "version": "2.0"}
+    )
+    filler = _chunk("prep-v1-s1", section="1", text="purpose", distance=0.15)
+    filler = filler.model_copy(
+        update={"document": "Preparedness Policy", "version": "1.0"}
+    )
+
+    # Older nuclear ranks first; context selection should still put 2.0 ahead
+    # and keep 1.0 so generation can state the conflict.
+    selected = select_generation_context([older, filler, newer], limit=3)
+
+    assert [c.chunk_id for c in selected[:2]] == ["prep-v2-s4", "prep-v1-s4"]
+    assert len(selected) == 3

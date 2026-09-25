@@ -4,6 +4,7 @@ from typing import Literal, Protocol
 from mini_rag_lab.domain.models import (
     EmbeddedChunk,
     GenerationDecision,
+    RetrievalStrategy,
     RetrievedChunk,
 )
 
@@ -53,3 +54,7 @@ class Reranker(Protocol):
         *,
         limit: int,
     ) -> list[RetrievedChunk]: ...
+
+
+class StrategyRouter(Protocol):
+    async def choose(self, question: str) -> RetrievalStrategy: ...

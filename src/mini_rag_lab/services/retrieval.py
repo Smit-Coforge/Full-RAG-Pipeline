@@ -15,6 +15,77 @@ class RetrievalError(RuntimeError):
     pass
 
 
+def _version_key(version: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for part in version.split("."):
+        try:
+            parts.append(int(part))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
+def select_generation_context(
+    ranked: Sequence[RetrievedChunk],
+    *,
+    limit: int = TOP_K,
+) -> list[RetrievedChunk]:
+    """Keep top-ranked chunks, but surface version conflicts for the same section.
+
+    When the candidate pool contains the same document+section at more than one
+    version, reserve seats for the newest and one older version (newest first)
+    so generation can prefer the higher version or state both.
+    """
+    if limit < 1 or not ranked:
+        return []
+
+    by_key: dict[tuple[str, str], list[RetrievedChunk]] = {}
+    for chunk in ranked:
+        by_key.setdefault((chunk.document, chunk.section), []).append(chunk)
+
+    rank_index = {chunk.chunk_id: index for index, chunk in enumerate(ranked)}
+    conflict_pairs: list[list[RetrievedChunk]] = []
+    for group in by_key.values():
+        if len({chunk.version for chunk in group}) < 2:
+            continue
+        ordered = sorted(
+            group,
+            key=lambda chunk: _version_key(chunk.version),
+            reverse=True,
+        )
+        newest = ordered[0]
+        older = next(
+            chunk for chunk in ordered[1:] if chunk.version != newest.version
+        )
+        conflict_pairs.append([newest, older])
+
+    conflict_pairs.sort(
+        key=lambda pair: min(rank_index[chunk.chunk_id] for chunk in pair)
+    )
+
+    selected: list[RetrievedChunk] = []
+    seen: set[str] = set()
+
+    def _add(chunk: RetrievedChunk) -> None:
+        if chunk.chunk_id in seen or len(selected) >= limit:
+            return
+        selected.append(chunk)
+        seen.add(chunk.chunk_id)
+
+    for pair in conflict_pairs:
+        if len(selected) >= limit:
+            break
+        _add(pair[0])
+        _add(pair[1])
+
+    for chunk in ranked:
+        if len(selected) >= limit:
+            break
+        _add(chunk)
+
+    return selected
+
+
 def reciprocal_rank_fusion(
     *ranked_lists: Sequence[RetrievedChunk],
     limit: int = CANDIDATE_N,
@@ -77,7 +148,12 @@ async def _apply_rerank(
     reranker: Reranker,
 ) -> list[RetrievedChunk]:
     def _run() -> list[RetrievedChunk]:
-        return reranker.rerank(question, list(candidates), limit=TOP_K)
+        ranked = reranker.rerank(
+            question,
+            list(candidates),
+            limit=max(len(candidates), TOP_K),
+        )
+        return select_generation_context(ranked, limit=TOP_K)
 
     return await asyncio.to_thread(_run)
 
@@ -119,5 +195,5 @@ async def retrieve_chunks(
     if not candidates:
         return []
     if reranker is None:
-        return list(candidates)[:TOP_K]
+        return select_generation_context(candidates, limit=TOP_K)
     return await _apply_rerank(question, candidates, reranker)
