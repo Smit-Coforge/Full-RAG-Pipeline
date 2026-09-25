@@ -54,9 +54,7 @@ def select_generation_context(
             reverse=True,
         )
         newest = ordered[0]
-        older = next(
-            chunk for chunk in ordered[1:] if chunk.version != newest.version
-        )
+        older = next(chunk for chunk in ordered[1:] if chunk.version != newest.version)
         conflict_pairs.append([newest, older])
 
     conflict_pairs.sort(

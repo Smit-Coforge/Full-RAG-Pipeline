@@ -70,9 +70,7 @@ async def _run_live_pipeline() -> None:
         assert response.citation is not None
         assert response.retrieved_chunks
         assert len(response.retrieved_chunks) <= 3
-        assert all(
-            item.rerank_score is not None for item in response.retrieved_chunks
-        )
+        assert all(item.rerank_score is not None for item in response.retrieved_chunks)
         scores = [item.rerank_score for item in response.retrieved_chunks]
         assert scores == sorted(scores, reverse=True)
 

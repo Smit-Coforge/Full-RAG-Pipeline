@@ -104,7 +104,7 @@ class _Router:
         return self.strategy
 
 
-def test_ask_use_router_overrides_strategy() -> None:
+def test_ask_use_jev_overrides_default_hybrid() -> None:
     router = _Router("vector")
     service = GroundedQueryService(
         _Embed(),
@@ -114,14 +114,12 @@ def test_ask_use_router_overrides_strategy() -> None:
         max_cosine_distance=0.4,
         strategy_router=router,
     )
-    response = asyncio.run(
-        service.ask("q", strategy="hybrid", use_router=True)
-    )
+    response = asyncio.run(service.ask("q", use_jev=True))
     assert router.calls == 1
     assert response.retrieval_strategy == "vector"
 
 
-def test_ask_without_router_keeps_strategy() -> None:
+def test_ask_without_jev_keeps_hybrid() -> None:
     router = _Router("keyword")
     service = GroundedQueryService(
         _Embed(),
@@ -131,14 +129,12 @@ def test_ask_without_router_keeps_strategy() -> None:
         max_cosine_distance=0.4,
         strategy_router=router,
     )
-    response = asyncio.run(
-        service.ask("q", strategy="vector", use_router=False)
-    )
+    response = asyncio.run(service.ask("q", use_jev=False))
     assert router.calls == 0
-    assert response.retrieval_strategy == "vector"
+    assert response.retrieval_strategy == "hybrid"
 
 
-def test_ask_router_without_wiring_raises() -> None:
+def test_ask_jev_without_wiring_raises() -> None:
     service = GroundedQueryService(
         _Embed(),
         _Repo(),
@@ -147,4 +143,4 @@ def test_ask_router_without_wiring_raises() -> None:
         max_cosine_distance=0.4,
     )
     with pytest.raises(RuntimeError, match="TYPESAFE_API_KEY"):
-        asyncio.run(service.ask("q", use_router=True))
+        asyncio.run(service.ask("q", use_jev=True))

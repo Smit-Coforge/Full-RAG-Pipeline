@@ -74,21 +74,18 @@ mini-rag-lab ingest
 
 ```shell
 python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?"
-python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --strategy vector
-python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --strategy keyword
-python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --router
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --jev
 ```
 
-Default `--strategy` is `hybrid`: cosine + `ILIKE`, RRF merge, then MiniLM
+Ask always uses **hybrid** retrieval: cosine + `ILIKE`, RRF merge, then MiniLM
 CrossEncoder top 3. The JSON includes `answer`, `citation`,
 `retrieved_chunks` (with `distance` and `rerank_score`), and
 `retrieval_strategy`.
 
-`--router` turns on the Jev strategy router (TypeSafe System One). Put your
-key in a repo-root `.env` as `TYPESAFE_API_KEY=apikey_...` (see
-`.env.example`). When `--router` is set, Jev picks `vector` | `keyword` |
-`hybrid` and `--strategy` is ignored. Without `--router`, behavior is
-unchanged.
+Optional `--jev` calls the TypeSafe Jev router first so it may pick
+`vector` | `keyword` | `hybrid` instead. Put your key in a repo-root `.env`
+as `TYPESAFE_API_KEY=apikey_...` (see `.env.example`). Without `--jev`, Jev
+is not called.
 
 First ask in a process loads the CrossEncoder weights into memory (and may
 show a Hugging Face Hub warning without `HF_TOKEN`).

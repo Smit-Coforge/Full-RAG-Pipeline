@@ -66,7 +66,7 @@ class JevStrategyRouter:
     ) -> None:
         if not api_key.strip():
             raise JevRouterError(
-                "TYPESAFE_API_KEY is empty; set it in .env to use --router"
+                "TYPESAFE_API_KEY is empty; set it in .env to use --jev"
             )
         self._api_key = api_key
         self._model = model

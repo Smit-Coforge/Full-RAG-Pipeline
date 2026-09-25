@@ -44,14 +44,14 @@ class GroundedQueryService:
         question: str,
         *,
         strategy: RetrievalStrategy = "hybrid",
-        use_router: bool = False,
+        use_jev: bool = False,
     ) -> AskResponse:
         request = AskRequest(question=question)
         resolved = strategy
-        if use_router:
+        if use_jev:
             if self._strategy_router is None:
                 raise RuntimeError(
-                    "use_router=True but no strategy_router is configured; "
+                    "use_jev=True but no strategy_router is configured; "
                     "set TYPESAFE_API_KEY in .env"
                 )
             resolved = await self._strategy_router.choose(request.question)

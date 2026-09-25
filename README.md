@@ -30,7 +30,7 @@ corpus/*.pdf|docx
   -> policy_chunks in PostgreSQL/pgvector
 
 question
-  -> retrieval strategy: vector | keyword | hybrid (CLI --strategy, or Jev via --router)
+  -> hybrid retrieval by default (optional --jev may pick vector|keyword|hybrid)
   -> vector: search_query: embed + cosine top 8
   -> keyword: ILIKE on text/title
   -> hybrid: RRF merge (k=60)
@@ -39,7 +39,7 @@ question
   -> cite stored metadata, or refuse with no citation
 ```
 
-`--strategy` is unchanged. Add `--router` only when you want Jev to pick the
+Default ask is always hybrid. Pass `--jev` only if you want Jev to choose the
 path (needs `TYPESAFE_API_KEY` in `.env`).
 
 ## Quick start

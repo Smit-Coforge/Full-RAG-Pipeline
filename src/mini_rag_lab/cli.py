@@ -42,17 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
     ask = commands.add_parser("ask", help="ask one grounded policy question")
     ask.add_argument("question", help="question to answer")
     ask.add_argument(
-        "--strategy",
-        choices=("vector", "keyword", "hybrid"),
-        default="hybrid",
-        help="retrieval path: vector, keyword (ILIKE), or hybrid",
-    )
-    ask.add_argument(
-        "--router",
+        "--jev",
         action="store_true",
         help=(
-            "let Jev choose vector|keyword|hybrid (requires TYPESAFE_API_KEY); "
-            "when set, --strategy is ignored"
+            "optional: let Jev choose vector|keyword|hybrid before retrieval "
+            "(requires TYPESAFE_API_KEY); default ask always uses hybrid"
         ),
     )
 
@@ -127,8 +121,7 @@ async def _ask(args: argparse.Namespace) -> int:
     try:
         response = await runtime.service.ask(
             args.question,
-            strategy=args.strategy,
-            use_router=args.router,
+            use_jev=args.jev,
         )
     finally:
         await runtime.close()
