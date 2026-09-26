@@ -22,7 +22,12 @@ def _chunk(number: int, distance: float) -> RetrievedChunk:
 
 
 class FakeEmbeddingProvider:
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        task: str = "search_document",
+    ) -> list[list[float]]:
         return [[0.0] * 768 for _ in texts]
 
 
@@ -36,8 +41,15 @@ class FakeRepository:
         *,
         limit: int,
     ) -> list[RetrievedChunk]:
-        assert limit == 3
-        return self.chunks
+        return self.chunks[:limit]
+
+    async def keyword_search(
+        self,
+        question: str,
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]:
+        return []
 
 
 class FakeGenerator:
@@ -83,13 +95,13 @@ def test_supported_answer_uses_stored_citation_and_top_evidence_only() -> None:
         "section": "1. Section 1",
     }
     assert [item.distance for item in response.retrieved_chunks] == [0.1, 0.2, 0.3]
-    assert generator.received_chunks == [chunks[0]]
+    assert generator.received_chunks == chunks
 
 
 def test_invalid_model_citation_is_replaced_with_refusal() -> None:
     chunks = [_chunk(1, 0.1), _chunk(2, 0.2)]
     generator = FakeGenerator(
-        GenerationDecision(answer="Unsupported", supporting_chunk_id="chunk-2")
+        GenerationDecision(answer="Unsupported", supporting_chunk_id="chunk-99")
     )
 
     response = asyncio.run(_service(chunks, generator).ask("question"))

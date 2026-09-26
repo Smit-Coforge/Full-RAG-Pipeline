@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,18 @@ class Settings(BaseSettings):
     generation_model: str = "qwen3:8b"
     generation_thinking: bool = False
     max_cosine_distance: float = Field(default=0.4, ge=0, le=2)
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    typesafe_api_key: str | None = None
+    jev_model: str = "jev-latest"
+    jev_systemone_url: str = "https://api.typesafe.ai/v1/systemone"
+
+    @field_validator("embedding_dimensions", mode="before")
+    @classmethod
+    def _coerce_embedding_dimensions(cls, value: Any) -> Any:
+        # Env/CI always supply strings; Literal[768] needs an int.
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value)
+        return value
 
 
 @lru_cache

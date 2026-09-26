@@ -30,6 +30,34 @@ def _chunk(text: str, section: str = "1") -> RetrievedChunk:
 def test_system_prompt_is_loaded_from_file() -> None:
     assert REFUSAL_ANSWER in SYSTEM_PROMPT
     assert "supporting_chunk_id" in SYSTEM_PROMPT
+    assert "Version conflicts" in SYSTEM_PROMPT
+    assert "higher VERSION" in SYSTEM_PROMPT
+    assert "plain language" in SYSTEM_PROMPT
+    assert "stiff" in SYSTEM_PROMPT
+
+
+def test_generator_includes_document_and_version_in_excerpts() -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.arguments = {}
+
+        async def chat(self, **kwargs):
+            self.arguments = kwargs
+            return SimpleNamespace(
+                message=SimpleNamespace(
+                    content='{"answer":"Grounded","supporting_chunk_id":"chunk-1"}'
+                )
+            )
+
+    client = FakeClient()
+    generator = OllamaAnswerGenerator("http://ollama.test", "qwen3:8b")
+    generator._client = client
+
+    asyncio.run(generator.generate("Question?", [_chunk("Grounded evidence.")]))
+
+    user = client.arguments["messages"][1]["content"]
+    assert "DOCUMENT: Policy" in user
+    assert "VERSION: 1.0" in user
 
 
 def test_currency_comparisons_are_computed_deterministically() -> None:

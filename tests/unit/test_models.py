@@ -37,7 +37,12 @@ def test_response_rejects_more_than_three_retrieved_chunks() -> None:
             answer="Answer",
             citation=None,
             retrieved_chunks=[
-                RetrievedChunkSummary(section=str(index), distance=float(index))
+                RetrievedChunkSummary(
+                    document="Policy",
+                    version="1.0",
+                    section=str(index),
+                    distance=float(index),
+                )
                 for index in range(4)
             ],
         )

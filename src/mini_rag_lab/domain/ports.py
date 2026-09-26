@@ -1,15 +1,23 @@
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Literal, Protocol
 
 from mini_rag_lab.domain.models import (
     EmbeddedChunk,
     GenerationDecision,
+    RetrievalStrategy,
     RetrievedChunk,
 )
 
+EmbeddingTask = Literal["search_document", "search_query"]
+
 
 class EmbeddingProvider(Protocol):
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        task: EmbeddingTask = "search_document",
+    ) -> list[list[float]]: ...
 
 
 class AnswerGenerator(Protocol):
@@ -29,3 +37,24 @@ class ChunkRepository(Protocol):
         *,
         limit: int,
     ) -> list[RetrievedChunk]: ...
+
+    async def keyword_search(
+        self,
+        question: str,
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]: ...
+
+
+class Reranker(Protocol):
+    def rerank(
+        self,
+        question: str,
+        chunks: Sequence[RetrievedChunk],
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]: ...
+
+
+class StrategyRouter(Protocol):
+    async def choose(self, question: str) -> RetrievalStrategy: ...

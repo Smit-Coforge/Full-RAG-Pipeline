@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install --editable ".[dev]"
+      - name: Ruff
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+      - name: Mypy
+        run: python -m mypy src
+      - name: Unit tests
+        run: python -m pytest tests/unit
+      - name: Evaluation harness (unit)
+        run: python -m pytest tests/unit/test_evaluation.py -q
+
+  # Hybrid-only live evaluate on a machine that already has Ollama models and
+  # Postgres (compose db published on localhost:5432). No TYPESAFE_API_KEY /
+  # no --jev. Register a self-hosted runner and keep it Idle for this job.
+  live-evaluate:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgresql://mini_rag_lab:mini_rag_lab@127.0.0.1:5432/mini_rag_lab
+      OLLAMA_HOST: http://127.0.0.1:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      GENERATION_MODEL: qwen3:8b
+      GENERATION_THINKING: "false"
+      MAX_COSINE_DISTANCE: "0.4"
+      RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L-6-v2
+    steps:
+      - uses: actions/checkout@v4
+      # Avoid actions/setup-python on macOS self-hosted: it tries mkdir
+      # /Users/runner (needs admin). uv installs 3.12 into the user home.
+      - name: Install uv and Python 3.12
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="${HOME}/.local/bin:${PATH}"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          echo "${GITHUB_WORKSPACE}/.venv/bin" >> "${GITHUB_PATH}"
+      - name: Install package
+        run: |
+          export PATH="${HOME}/.local/bin:${PATH}"
+          uv pip install --python .venv --editable ".[dev]"
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if .venv/bin/python -c "import socket; s=socket.create_connection(('127.0.0.1', 5432), 2); s.close()"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres not reachable on 127.0.0.1:5432 (start compose db)"
+          exit 1
+      - name: Wait for Ollama
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "${OLLAMA_HOST}/api/tags" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Ollama not reachable at ${OLLAMA_HOST}"
+          exit 1
+      - name: Migrate
+        run: .venv/bin/python -m mini_rag_lab migrate
+      - name: Ingest corpus
+        run: .venv/bin/python -m mini_rag_lab ingest
+      - name: Evaluate harness (live, hybrid only)
+        run: .venv/bin/python -m mini_rag_lab evaluate
+      - name: Live evaluate pytest
+        env:
+          RUN_LIVE_TESTS: "1"
+        run: .venv/bin/python -m pytest tests/integration/test_live_evaluation.py -q

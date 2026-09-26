@@ -5,10 +5,19 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mini_rag_lab.config import get_settings
+from mini_rag_lab.domain.models import EmbeddedChunk
 from mini_rag_lab.migrations import apply_migrations
 from mini_rag_lab.runtime import create_runtime
-from mini_rag_lab.services.evaluation import evaluate_required_questions
-from mini_rag_lab.services.ingestion import ingest_policy
+from mini_rag_lab.services.evaluation import (
+    evaluate_required_questions,
+    format_cli_metrics,
+    write_eval_run,
+)
+from mini_rag_lab.services.ingestion import ingest_corpus, ingest_policy
+
+
+def _print_json(payload: object) -> None:
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,32 +32,78 @@ def build_parser() -> argparse.ArgumentParser:
         help="directory containing SQL migrations",
     )
 
-    ingest = commands.add_parser("ingest", help="embed and store policy sections")
+    ingest = commands.add_parser(
+        "ingest",
+        help="embed and store policy sections from corpus/ (or optional Markdown)",
+    )
     ingest.add_argument(
         "--policy",
         type=Path,
-        default=Path("policy.md"),
-        help="policy Markdown file",
+        default=Path("corpus"),
+        help="corpus directory (default), or a six-section Markdown policy file",
     )
 
     ask = commands.add_parser("ask", help="ask one grounded policy question")
     ask.add_argument("question", help="question to answer")
+    ask.add_argument(
+        "--jev",
+        action="store_true",
+        help=(
+            "optional: let Jev choose vector|keyword|hybrid before retrieval "
+            "(requires TYPESAFE_API_KEY); default ask always uses hybrid"
+        ),
+    )
 
-    commands.add_parser("evaluate", help="run the six required questions")
+    evaluate = commands.add_parser(
+        "evaluate",
+        help="run the ≥8 corpus harness; write a table report under eval_runs/",
+    )
+    evaluate.add_argument(
+        "--jev",
+        action="store_true",
+        help=(
+            "optional: let Jev choose vector|keyword|hybrid for each case "
+            "(requires TYPESAFE_API_KEY); default evaluate always uses hybrid"
+        ),
+    )
     return parser
 
 
 async def _migrate(args: argparse.Namespace) -> int:
     settings = get_settings()
     applied = await apply_migrations(settings.database_url, args.directory)
-    print(json.dumps({"applied": applied}))
+    _print_json({"applied": applied})
     return 0
+
+
+def _ingest_report(chunks: Sequence[EmbeddedChunk]) -> dict[str, object]:
+    counts: dict[tuple[str, str], int] = {}
+    order: list[tuple[str, str]] = []
+    for chunk in chunks:
+        key = (chunk.document, chunk.version)
+        if key not in counts:
+            order.append(key)
+            counts[key] = 0
+        counts[key] += 1
+
+    documents = [
+        {
+            "document": document,
+            "version": version,
+            "chunks_stored": counts[(document, version)],
+        }
+        for document, version in order
+    ]
+    if len(documents) == 1:
+        return documents[0]
+    return {"documents": documents, "chunks_stored": len(chunks)}
 
 
 async def _ingest(args: argparse.Namespace) -> int:
     runtime = await create_runtime()
     try:
-        chunks = await ingest_policy(
+        ingest = ingest_corpus if args.policy.is_dir() else ingest_policy
+        chunks = await ingest(
             args.policy,
             runtime.embedding_provider,
             runtime.repository,
@@ -58,37 +113,36 @@ async def _ingest(args: argparse.Namespace) -> int:
     finally:
         await runtime.close()
 
-    print(
-        json.dumps(
-            {
-                "document": chunks[0].document,
-                "version": chunks[0].version,
-                "chunks_stored": len(chunks),
-            }
-        )
-    )
+    _print_json(_ingest_report(chunks))
     return 0
 
 
-async def _evaluate() -> int:
+async def _evaluate(args: argparse.Namespace) -> int:
     runtime = await create_runtime()
     try:
-        result = await evaluate_required_questions(runtime.service)
+        result = await evaluate_required_questions(
+            runtime.service,
+            use_jev=args.jev,
+        )
+        write_eval_run(result, runtime.settings, use_jev=args.jev)
     finally:
         await runtime.close()
 
-    print(json.dumps(result, indent=2))
+    print(format_cli_metrics(result))
     return 0 if result["passed"] else 1
 
 
 async def _ask(args: argparse.Namespace) -> int:
     runtime = await create_runtime()
     try:
-        response = await runtime.service.ask(args.question)
+        response = await runtime.service.ask(
+            args.question,
+            use_jev=args.jev,
+        )
     finally:
         await runtime.close()
 
-    print(json.dumps(response.model_dump(mode="json"), indent=2))
+    _print_json(response.model_dump(mode="json"))
     return 0
 
 
@@ -99,7 +153,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "ingest":
         return asyncio.run(_ingest(args))
     if args.command == "evaluate":
-        return asyncio.run(_evaluate())
+        return asyncio.run(_evaluate(args))
     if args.command == "ask":
         return asyncio.run(_ask(args))
     raise AssertionError(f"unhandled command: {args.command}")

@@ -220,3 +220,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.DS_Store
+
+# Local evaluation run reports (timestamped Markdown; do not commit)
+eval_runs/
+
+actions-runner

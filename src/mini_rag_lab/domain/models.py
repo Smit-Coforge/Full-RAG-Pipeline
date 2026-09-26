@@ -1,10 +1,11 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 REFUSAL_ANSWER = "The provided policy does not answer this question."
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Embedding = Annotated[list[float], Field(min_length=768, max_length=768)]
+RetrievalStrategy = Literal["vector", "keyword", "hybrid"]
 
 
 class StrictModel(BaseModel):
@@ -27,6 +28,7 @@ class EmbeddedChunk(PolicyChunk):
 
 class RetrievedChunk(PolicyChunk):
     distance: float
+    rerank_score: float | None = None
 
 
 class AskRequest(StrictModel):
@@ -40,8 +42,11 @@ class Citation(StrictModel):
 
 
 class RetrievedChunkSummary(StrictModel):
+    document: NonEmptyString
+    version: NonEmptyString
     section: NonEmptyString
     distance: float
+    rerank_score: float | None = None
 
 
 class GenerationDecision(StrictModel):
@@ -53,3 +58,4 @@ class AskResponse(StrictModel):
     answer: NonEmptyString
     citation: Citation | None
     retrieved_chunks: list[RetrievedChunkSummary] = Field(max_length=3)
+    retrieval_strategy: RetrievalStrategy = "hybrid"

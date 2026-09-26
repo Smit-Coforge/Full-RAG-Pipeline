@@ -1,7 +1,8 @@
 # Running Mini RAG Lab
 
 The application is a CLI. Docker runs the app and PostgreSQL/pgvector. Ollama
-runs on the host machine.
+runs on the host machine. The default corpus is the PDF/DOCX files under
+`corpus/`.
 
 ## Prerequisites
 
@@ -36,19 +37,31 @@ Enter the app container:
 docker compose exec app bash
 ```
 
-## Ingestion command
-
-There is no separate ingest script to upload. Ingestion is this command, which
-is part of the application source:
+## Ingestion
 
 ```shell
 python -m mini_rag_lab migrate
 python -m mini_rag_lab ingest
 ```
 
-`migrate` applies `migrations/001_create_policy_chunks.sql`. `ingest` reads
-`policy.md`, splits it into six sections, embeds each section, and stores the
-rows in PostgreSQL.
+`migrate` applies `migrations/001_create_policy_chunks.sql`.
+
+`ingest` defaults to `--policy corpus`. Every `.pdf` / `.docx` in that directory
+is chunked, embedded with a `search_document:` prefix, and upserted. Re-ingest
+replaces each document version; it does not delete unrelated documents left
+from an older ingest.
+
+Optional Markdown path (exactly six `##` sections, legacy mini-lab shape):
+
+```shell
+python -m mini_rag_lab ingest --policy path/to/policy.md
+```
+
+Successful corpus ingest prints a multi-document report, for example:
+
+```json
+{"documents": [{"document": "HR Policy", "version": "1.0", "chunks_stored": 9}], "chunks_stored": 63}
+```
 
 Equivalent entry point after install:
 
@@ -57,29 +70,50 @@ mini-rag-lab migrate
 mini-rag-lab ingest
 ```
 
-Successful ingest prints:
-
-```json
-{"document": "Employee Expense Policy", "version": "2.0", "chunks_stored": 6}
-```
-
 ## Ask a question
 
 ```shell
-python -m mini_rag_lab ask "How much can I spend on food each day?"
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?"
+python -m mini_rag_lab ask "What does section 7.1 say about the refrigerator?" --jev
 ```
 
-The command prints the assignment JSON shape: `answer`, `citation`, and up to
-three `retrieved_chunks` with numeric cosine distances in ascending order.
+Ask always uses **hybrid** retrieval: cosine + `ILIKE`, RRF merge, then MiniLM
+CrossEncoder top 3. The JSON includes `answer`, `citation`,
+`retrieved_chunks` (with `distance` and `rerank_score`), and
+`retrieval_strategy`.
 
-## Run the six required questions
+Optional `--jev` calls the TypeSafe Jev router first so it may pick
+`vector` | `keyword` | `hybrid` instead. Put your key in a repo-root `.env`
+as `TYPESAFE_API_KEY=apikey_...` (see `.env.example`). Without `--jev`, Jev
+is not called.
+
+First ask in a process loads the CrossEncoder weights into memory (and may
+show a Hugging Face Hub warning without `HF_TOKEN`).
+
+## Corpus evaluate (≥8 fixed questions)
 
 ```shell
 python -m mini_rag_lab evaluate
 ```
 
-Exit code `0` means all six questions passed. Saved output is in
-`docs/required-questions.md`.
+Runs the Doofenshmirtz corpus harness: retrieval recall, citation match, and
+answer-term checks (plus one refusal). Prints plain metric lines (recall,
+accuracy, latency) to the terminal and writes the full per-case table under
+`eval_runs/` (gitignored) with model metadata (`jev: not used` or the Jev model
+name when `--jev` is passed). Case list and scoring notes are in
+`docs/required-questions.md`. Unit tests cover the scorer without Ollama.
+
+Live evaluate also runs in CI on a **self-hosted** runner (hybrid only; no
+TypeSafe / Jev). Prerequisites on that machine: Ollama with the models from
+`.env.example`, and `docker compose up -d db` so Postgres is on
+`127.0.0.1:5432`. The self-hosted job installs Python 3.12 with **uv** into
+a local `.venv` (avoids `actions/setup-python` trying to write `/Users/runner`,
+which needs admin on managed Macs). Locally:
+
+```shell
+RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_evaluation.py
+```
+
 
 ## Tests
 
@@ -87,6 +121,13 @@ Exit code `0` means all six questions passed. Saved output is in
 python -m pytest tests/unit
 RUN_INTEGRATION_TESTS=1 python -m pytest tests/integration/test_database.py
 RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_pipeline.py
+RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_evaluation.py
+```
+
+## Minimal embed proof
+
+```shell
+python scripts/minimal_embed_retrieve.py
 ```
 
 ## Stop
