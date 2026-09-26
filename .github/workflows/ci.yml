@@ -42,23 +42,24 @@ jobs:
       RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L-6-v2
     steps:
       - uses: actions/checkout@v4
-      # Job-level env cannot use runner.*; set a user-writable tool cache here
-      # so setup-python does not try mkdir /Users/runner (no admin needed).
-      - name: Writable Python tool cache
+      # Avoid actions/setup-python on macOS self-hosted: it tries mkdir
+      # /Users/runner (needs admin). uv installs 3.12 into the user home.
+      - name: Install uv and Python 3.12
         run: |
-          cache_dir="${RUNNER_TEMP}/hostedtoolcache"
-          mkdir -p "${cache_dir}"
-          echo "RUNNER_TOOL_CACHE=${cache_dir}" >> "$GITHUB_ENV"
-          echo "AGENT_TOOLSDIRECTORY=${cache_dir}" >> "$GITHUB_ENV"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install
-        run: pip install --editable ".[dev]"
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="${HOME}/.local/bin:${PATH}"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          echo "${GITHUB_WORKSPACE}/.venv/bin" >> "${GITHUB_PATH}"
+      - name: Install package
+        run: |
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install --editable ".[dev]"
       - name: Wait for Postgres
         run: |
           for i in $(seq 1 30); do
-            if python -c "import socket; s=socket.create_connection(('127.0.0.1', 5432), 2); s.close()"; then
+            if .venv/bin/python -c "import socket; s=socket.create_connection(('127.0.0.1', 5432), 2); s.close()"; then
               exit 0
             fi
             sleep 2
@@ -76,12 +77,12 @@ jobs:
           echo "Ollama not reachable at ${OLLAMA_HOST}"
           exit 1
       - name: Migrate
-        run: python -m mini_rag_lab migrate
+        run: .venv/bin/python -m mini_rag_lab migrate
       - name: Ingest corpus
-        run: python -m mini_rag_lab ingest
+        run: .venv/bin/python -m mini_rag_lab ingest
       - name: Evaluate harness (live, hybrid only)
-        run: python -m mini_rag_lab evaluate
+        run: .venv/bin/python -m mini_rag_lab evaluate
       - name: Live evaluate pytest
         env:
           RUN_LIVE_TESTS: "1"
-        run: python -m pytest tests/integration/test_live_evaluation.py -q
+        run: .venv/bin/python -m pytest tests/integration/test_live_evaluation.py -q

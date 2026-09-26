@@ -106,9 +106,9 @@ name when `--jev` is passed). Case list and scoring notes are in
 Live evaluate also runs in CI on a **self-hosted** runner (hybrid only; no
 TypeSafe / Jev). Prerequisites on that machine: Ollama with the models from
 `.env.example`, and `docker compose up -d db` so Postgres is on
-`127.0.0.1:5432`. A step sets `RUNNER_TOOL_CACHE` under `$RUNNER_TEMP` so
-`actions/setup-python` can install Python 3.12 without admin / without
-touching `/Users/runner`. Locally:
+`127.0.0.1:5432`. The self-hosted job installs Python 3.12 with **uv** into
+a local `.venv` (avoids `actions/setup-python` trying to write `/Users/runner`,
+which needs admin on managed Macs). Locally:
 
 ```shell
 RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_evaluation.py
