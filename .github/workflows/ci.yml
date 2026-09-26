@@ -32,6 +32,10 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
+      # Writable tool cache for setup-python on macOS self-hosted (avoids
+      # mkdir /Users/runner Permission denied; no admin needed).
+      RUNNER_TOOL_CACHE: ${{ runner.temp }}/hostedtoolcache
+      AGENT_TOOLSDIRECTORY: ${{ runner.temp }}/hostedtoolcache
       DATABASE_URL: postgresql://mini_rag_lab:mini_rag_lab@127.0.0.1:5432/mini_rag_lab
       OLLAMA_HOST: http://127.0.0.1:11434
       EMBEDDING_MODEL: nomic-embed-text
