@@ -19,6 +19,8 @@ a single six-section `##` policy file; the default product path is `corpus/`.
 | Architecture decisions | [docs/adr/](docs/adr/) |
 | Run instructions | [docs/running.md](docs/running.md) |
 | Corpus evaluate harness (≥8 cases) | [docs/required-questions.md](docs/required-questions.md) |
+| Planted data-quality diagnosis (Part 6) | [docs/data-quality-diagnosis.md](docs/data-quality-diagnosis.md) |
+| CI | `.github/workflows/ci.yml` — unit checks on GitHub-hosted; live `evaluate` on self-hosted (hybrid only) |
 
 ## How the pipeline works
 

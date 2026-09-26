@@ -225,3 +225,5 @@ __marimo__/
 
 # Local evaluation run reports (timestamped Markdown; do not commit)
 eval_runs/
+
+actions-runner

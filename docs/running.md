@@ -103,6 +103,15 @@ accuracy, latency) to the terminal and writes the full per-case table under
 name when `--jev` is passed). Case list and scoring notes are in
 `docs/required-questions.md`. Unit tests cover the scorer without Ollama.
 
+Live evaluate also runs in CI on a **self-hosted** runner (hybrid only; no
+TypeSafe / Jev). Prerequisites on that machine: Ollama with the models from
+`.env.example`, and `docker compose up -d db` so Postgres is on
+`127.0.0.1:5432`. Locally:
+
+```shell
+RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_evaluation.py
+```
+
 
 ## Tests
 
@@ -110,6 +119,7 @@ name when `--jev` is passed). Case list and scoring notes are in
 python -m pytest tests/unit
 RUN_INTEGRATION_TESTS=1 python -m pytest tests/integration/test_database.py
 RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_pipeline.py
+RUN_LIVE_TESTS=1 python -m pytest tests/integration/test_live_evaluation.py
 ```
 
 ## Minimal embed proof
