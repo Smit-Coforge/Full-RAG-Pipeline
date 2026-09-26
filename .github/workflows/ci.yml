@@ -54,8 +54,8 @@ jobs:
           echo "${GITHUB_WORKSPACE}/.venv/bin" >> "${GITHUB_PATH}"
       - name: Install package
         run: |
-          .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install --editable ".[dev]"
+          export PATH="${HOME}/.local/bin:${PATH}"
+          uv pip install --python .venv --editable ".[dev]"
       - name: Wait for Postgres
         run: |
           for i in $(seq 1 30); do
