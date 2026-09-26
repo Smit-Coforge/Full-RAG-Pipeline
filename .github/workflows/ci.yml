@@ -35,7 +35,6 @@ jobs:
       DATABASE_URL: postgresql://mini_rag_lab:mini_rag_lab@127.0.0.1:5432/mini_rag_lab
       OLLAMA_HOST: http://127.0.0.1:11434
       EMBEDDING_MODEL: nomic-embed-text
-      EMBEDDING_DIMENSIONS: "768"
       GENERATION_MODEL: qwen3:8b
       GENERATION_THINKING: "false"
       MAX_COSINE_DISTANCE: "0.4"
